@@ -17,21 +17,19 @@ test "parse cookie success" {
     ),
   )
   debug_inspect(
-    try? Cookie::parse("Cookie="),
+    Cookie::parse("Cookie="),
     content=(
-      #|Ok(
-      #|  {
-      #|    name: "Cookie",
-      #|    value: "",
-      #|    path: None,
-      #|    expires_raw: None,
-      #|    max_age: None,
-      #|    domain: None,
-      #|    secure: false,
-      #|    http_only: false,
-      #|    extensions: [],
-      #|  },
-      #|)
+      #|{
+      #|  name: "Cookie",
+      #|  value: "",
+      #|  path: None,
+      #|  expires_raw: None,
+      #|  max_age: None,
+      #|  domain: None,
+      #|  secure: false,
+      #|  http_only: false,
+      #|  extensions: [],
+      #|}
     ),
   )
   debug_inspect(
@@ -56,16 +54,26 @@ test "parse cookie success" {
 
 ///|
 test "parse cookie failure" {
-  debug_inspect(
-    try? Cookie::parse("Cookie"),
-    content=(
-      #|Err(BadRequest)
-    ),
-  )
-  debug_inspect(
-    try? Cookie::parse("Cookie=value;Max-Age=xxx"),
-    content=(
-      #|Err(BadRequest)
-    ),
-  )
+  try Cookie::parse("Cookie") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|BadRequest
+        ),
+      )
+  } noraise {
+    _ => fail("expected Cookie::parse to raise")
+  }
+  try Cookie::parse("Cookie=value;Max-Age=xxx") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|BadRequest
+        ),
+      )
+  } noraise {
+    _ => fail("expected Cookie::parse to raise")
+  }
 }

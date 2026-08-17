@@ -4,10 +4,10 @@ test "builder merges headers" {
     .default_header("User-Agent", "mio-test")
     .build()
   let builder = client.get("https://example.com").header("Accept", "text/plain")
-  inspect(
+  debug_inspect(
     builder.merged_headers(),
     content=(
-      #|{"User-Agent": "mio-test", "Accept": "text/plain"}
+      #|{ "User-Agent": "mio-test", "Accept": "text/plain" }
     ),
   )
 }
@@ -35,10 +35,14 @@ test "hpack round trip without huffman" {
     ("content-type", "text/plain"),
     ("x-test", "moonbit"),
   ])
-  inspect(
+  debug_inspect(
     hpack_decode_headers(encoded),
     content=(
-      #|[(":status", "200"), ("content-type", "text/plain"), ("x-test", "moonbit")]
+      #|[
+      #|  (":status", "200"),
+      #|  ("content-type", "text/plain"),
+      #|  ("x-test", "moonbit"),
+      #|]
     ),
   )
 }
@@ -46,12 +50,12 @@ test "hpack round trip without huffman" {
 ///|
 #cfg(target="native")
 test "hpack decodes dynamic table references" {
-  let block = @buffer.new()
+  let block = Buffer()
   hpack_write_int(block, 0, prefix_bits=6, first_mask=0x40)
   hpack_write_string(block, "x-test")
   hpack_write_string(block, "moonbit")
   hpack_write_int(block, 62, prefix_bits=7, first_mask=0x80)
-  inspect(
+  debug_inspect(
     hpack_decode_headers(block.contents()),
     content=(
       #|[("x-test", "moonbit"), ("x-test", "moonbit")]
@@ -73,7 +77,7 @@ test "hpack decodes huffman strings" {
 ///|
 #cfg(target="native")
 fn test_der(tag : Int, payload : Bytes) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte(tag.to_byte())
   if payload.length() < 0x80 {
     out.write_byte(payload.length().to_byte())
@@ -92,7 +96,7 @@ fn test_der(tag : Int, payload : Bytes) -> Bytes {
 ///|
 #cfg(target="native")
 fn test_der_join(parts : Array[Bytes]) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   for part in parts {
     out.write_bytes(part)
   }
@@ -174,8 +178,20 @@ test "x509 verifies dns hostnames" {
   let parsed = x509_parse_certificate(test_x509_certificate_der())
   x509_verify_hostname(parsed, "example.com")
   x509_verify_hostname(parsed, "WWW.EXAMPLE.COM")
-  assert_true((try? x509_verify_hostname(parsed, "api.example.com")) is Err(_))
-  assert_true((try? x509_verify_hostname(parsed, "bad.test")) is Err(_))
+  assert_true(
+    try x509_verify_hostname(parsed, "api.example.com") catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
+  )
+  assert_true(
+    try x509_verify_hostname(parsed, "bad.test") catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
+  )
   let wildcard = {
     tbs_certificate: b"",
     signature_algorithm: "",
@@ -187,7 +203,11 @@ test "x509 verifies dns hostnames" {
   }
   x509_verify_hostname(wildcard, "api.example.com")
   assert_true(
-    (try? x509_verify_hostname(wildcard, "deep.api.example.com")) is Err(_),
+    try x509_verify_hostname(wildcard, "deep.api.example.com") catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
   )
 }
 
@@ -203,8 +223,11 @@ test "rsa pss verifies sha256 signatures" {
   let message = b"tls certificate verify message"
   rsa_pss_sha256_verify(public_key, message, signature)
   assert_true(
-    (try? rsa_pss_sha256_verify(public_key, b"wrong message", signature))
-    is Err(_),
+    try rsa_pss_sha256_verify(public_key, b"wrong message", signature) catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
   )
 }
 
@@ -235,19 +258,24 @@ test "tls13 verifies rsa certificate verify" {
   )
   tls13_verify_certificate_verify(peer_info, verify, transcript_hash)
   assert_true(
-    (try? tls13_verify_certificate_verify(
-      peer_info,
-      verify,
-      tls13_sha256(b"wrong transcript"),
-    ))
-    is Err(_),
+    try
+      tls13_verify_certificate_verify(
+        peer_info,
+        verify,
+        tls13_sha256(b"wrong transcript"),
+      )
+    catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
   )
 }
 
 ///|
 #cfg(target="native")
 async test "http2 prior knowledge h2c loopback" {
-  let server = @socket.TcpServer::new(
+  let server = @socket.TcpServer(
     @socket.Addr::parse("127.0.0.1:0"),
     reuse_addr=true,
   )
@@ -266,7 +294,7 @@ async test "http2 prior knowledge h2c loopback" {
         }
       }
       let decoded = HpackDecoder::new().decode(headers.payload)
-      inspect(decoded[0], content="(\":method\", \"GET\")")
+      debug_inspect(decoded[0], content="(\":method\", \"GET\")")
       let response_headers = hpack_encode_headers([
         (":status", "200"),
         ("content-length", "2"),
@@ -275,8 +303,16 @@ async test "http2 prior knowledge h2c loopback" {
         conn, h2_frame_headers, h2_flag_end_headers, 1, response_headers,
       )
       h2_write_frame(conn, h2_frame_data, h2_flag_end_stream, 1, b"ok")
-      let _ = try? h2_read_frame(conn)
-      let _ = try? h2_read_frame(conn)
+      try h2_read_frame(conn) catch {
+        _ => ()
+      } noraise {
+        _ => ()
+      }
+      try h2_read_frame(conn) catch {
+        _ => ()
+      } noraise {
+        _ => ()
+      }
       server.close()
     })
     let client = RequestClient::builder().http2_prior_knowledge().build()
@@ -291,7 +327,7 @@ async test "http2 prior knowledge h2c loopback" {
 ///|
 #cfg(target="native")
 test "quic varint round trip" {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, 37)
   quic_write_varint(out, 15293)
   quic_write_varint(out, 494878333)
@@ -299,7 +335,7 @@ test "quic varint round trip" {
   let (a, pos) = quic_read_varint(encoded, 0)
   let (b, pos) = quic_read_varint(encoded, pos)
   let (c, _) = quic_read_varint(encoded, pos)
-  inspect((a, b, c), content="(37, 15293, 494878333)")
+  debug_inspect((a, b, c), content="(37, 15293, 494878333)")
 }
 
 ///|
@@ -314,10 +350,16 @@ test "http3 headers round trip through qpack" {
       ("x-test", "moonbit"),
     ]),
   )
-  inspect(
+  debug_inspect(
     h3_decode_headers(frame),
     content=(
-      #|[(":method", "GET"), (":scheme", "https"), (":path", "/"), (":authority", "example.com"), ("x-test", "moonbit")]
+      #|[
+      #|  (":method", "GET"),
+      #|  (":scheme", "https"),
+      #|  (":path", "/"),
+      #|  (":authority", "example.com"),
+      #|  ("x-test", "moonbit"),
+      #|]
     ),
   )
 }
@@ -331,7 +373,7 @@ test "http3 settings and request stream round trip" {
   let settings = h3_decode_settings(
     h3_decode_frame(control, offset=frame_offset),
   )
-  inspect(settings, content="[(1, 0), (7, 16)]")
+  debug_inspect(settings, content="[(1, 0), (7, 16)]")
   let stream = h3_encode_request_stream(
     [
       (":method", "POST"),
@@ -343,7 +385,10 @@ test "http3 settings and request stream round trip" {
   )
   let frames = h3_decode_frames(stream)
   inspect(frames.length(), content="2")
-  inspect(h3_decode_headers(frames[0])[0], content="(\":method\", \"POST\")")
+  debug_inspect(
+    h3_decode_headers(frames[0])[0],
+    content="(\":method\", \"POST\")",
+  )
   inspect(@utf8.decode_lossy(frames[1].payload), content="ok")
 }
 
@@ -674,18 +719,18 @@ test "tls13 key schedule derives handshake traffic keys" {
 #cfg(target="native")
 test "tls13 parses server hello encrypted extensions and finished" {
   let server_key = Bytes::make(32, b'\x44')
-  let key_share_payload = @buffer.new()
+  let key_share_payload = Buffer()
   tls13_write_u16(key_share_payload, tls13_group_x25519)
   tls13_write_u16(key_share_payload, server_key.length())
   key_share_payload.write_bytes(server_key)
-  let extensions = @buffer.new()
+  let extensions = Buffer()
   extensions.write_bytes(
     tls13_extension(tls13_ext_supported_versions, b"\x03\x04"),
   )
   extensions.write_bytes(
     tls13_extension(tls13_ext_key_share, key_share_payload.contents()),
   )
-  let server_body = @buffer.new()
+  let server_body = Buffer()
   tls13_write_u16(server_body, 0x0303)
   server_body.write_bytes(Bytes::make(32, b'\x55'))
   server_body.write_byte(b'\x08')
@@ -694,7 +739,7 @@ test "tls13 parses server hello encrypted extensions and finished" {
   server_body.write_byte(b'\x00')
   tls13_write_u16(server_body, extensions.length())
   server_body.write_bytes(extensions.contents())
-  let server_message = @buffer.new()
+  let server_message = Buffer()
   server_message.write_byte(b'\x02')
   tls13_write_u24(server_message, server_body.length())
   server_message.write_bytes(server_body.contents())
@@ -714,15 +759,15 @@ test "tls13 parses server hello encrypted extensions and finished" {
     initial_max_streams_uni: 3,
     active_connection_id_limit: 2,
   })
-  let ee_extensions = @buffer.new()
+  let ee_extensions = Buffer()
   ee_extensions.write_bytes(tls13_extension(tls13_ext_alpn, b"\x00\x03\x02h3"))
   ee_extensions.write_bytes(
     tls13_extension(tls13_ext_quic_transport_parameters, transport_parameters),
   )
-  let ee_body = @buffer.new()
+  let ee_body = Buffer()
   tls13_write_u16(ee_body, ee_extensions.length())
   ee_body.write_bytes(ee_extensions.contents())
-  let ee_message = @buffer.new()
+  let ee_message = Buffer()
   ee_message.write_byte(b'\x08')
   tls13_write_u24(ee_message, ee_body.length())
   ee_message.write_bytes(ee_body.contents())
@@ -732,7 +777,7 @@ test "tls13 parses server hello encrypted extensions and finished" {
   inspect(encrypted_extensions.alpn, content="h3")
   assert_eq(encrypted_extensions.transport_parameters, transport_parameters)
 
-  let finished_message = @buffer.new()
+  let finished_message = Buffer()
   finished_message.write_byte(b'\x14')
   tls13_write_u24(finished_message, 32)
   finished_message.write_bytes(Bytes::make(32, b'\x66'))
@@ -743,15 +788,15 @@ test "tls13 parses server hello encrypted extensions and finished" {
 ///|
 #cfg(target="native")
 test "tls13 parses certificate and certificate verify" {
-  let cert_entry = @buffer.new()
+  let cert_entry = Buffer()
   tls13_write_u24(cert_entry, 4)
   cert_entry.write_bytes(b"cert")
   tls13_write_u16(cert_entry, 0)
-  let cert_body = @buffer.new()
+  let cert_body = Buffer()
   cert_body.write_byte(b'\x00')
   tls13_write_u24(cert_body, cert_entry.length())
   cert_body.write_bytes(cert_entry.contents())
-  let cert_message = @buffer.new()
+  let cert_message = Buffer()
   cert_message.write_byte(b'\x0b')
   tls13_write_u24(cert_message, cert_body.length())
   cert_message.write_bytes(cert_body.contents())
@@ -759,11 +804,11 @@ test "tls13 parses certificate and certificate verify" {
   inspect(cert.entries.length(), content="1")
   inspect(@utf8.decode_lossy(cert.entries[0].cert_data), content="cert")
 
-  let cv_body = @buffer.new()
+  let cv_body = Buffer()
   tls13_write_u16(cv_body, 0x0804)
   tls13_write_u16(cv_body, 6)
   cv_body.write_bytes(b"sigval")
-  let cv_message = @buffer.new()
+  let cv_message = Buffer()
   cv_message.write_byte(b'\x0f')
   tls13_write_u24(cv_message, cv_body.length())
   cv_message.write_bytes(cv_body.contents())
@@ -811,18 +856,18 @@ test "tls13 processes server handshake and verifies finished" {
     x25519_public_key: client_public,
     transport_parameters,
   })
-  let key_share_payload = @buffer.new()
+  let key_share_payload = Buffer()
   tls13_write_u16(key_share_payload, tls13_group_x25519)
   tls13_write_u16(key_share_payload, server_public.length())
   key_share_payload.write_bytes(server_public)
-  let sh_extensions = @buffer.new()
+  let sh_extensions = Buffer()
   sh_extensions.write_bytes(
     tls13_extension(tls13_ext_supported_versions, b"\x03\x04"),
   )
   sh_extensions.write_bytes(
     tls13_extension(tls13_ext_key_share, key_share_payload.contents()),
   )
-  let sh_body = @buffer.new()
+  let sh_body = Buffer()
   tls13_write_u16(sh_body, 0x0303)
   sh_body.write_bytes(Bytes::make(32, b'\x55'))
   sh_body.write_byte(b'\x08')
@@ -831,21 +876,21 @@ test "tls13 processes server handshake and verifies finished" {
   sh_body.write_byte(b'\x00')
   tls13_write_u16(sh_body, sh_extensions.length())
   sh_body.write_bytes(sh_extensions.contents())
-  let server_hello = @buffer.new()
+  let server_hello = Buffer()
   server_hello.write_byte(b'\x02')
   tls13_write_u24(server_hello, sh_body.length())
   server_hello.write_bytes(sh_body.contents())
   let server_hello = server_hello.contents()
 
-  let ee_extensions = @buffer.new()
+  let ee_extensions = Buffer()
   ee_extensions.write_bytes(tls13_extension(tls13_ext_alpn, b"\x00\x03\x02h3"))
   ee_extensions.write_bytes(
     tls13_extension(tls13_ext_quic_transport_parameters, transport_parameters),
   )
-  let ee_body = @buffer.new()
+  let ee_body = Buffer()
   tls13_write_u16(ee_body, ee_extensions.length())
   ee_body.write_bytes(ee_extensions.contents())
-  let encrypted_extensions = @buffer.new()
+  let encrypted_extensions = Buffer()
   encrypted_extensions.write_byte(b'\x08')
   tls13_write_u24(encrypted_extensions, ee_body.length())
   encrypted_extensions.write_bytes(ee_body.contents())
@@ -869,7 +914,7 @@ test "tls13 processes server handshake and verifies finished" {
     server_keys.finished_key,
     tls13_transcript_hash([client_hello, server_hello, encrypted_extensions]),
   )
-  let finished = @buffer.new()
+  let finished = Buffer()
   finished.write_byte(b'\x14')
   tls13_write_u24(finished, verify_data.length())
   finished.write_bytes(verify_data)
@@ -882,19 +927,24 @@ test "tls13 processes server handshake and verifies finished" {
   )
   inspect(result.encrypted_extensions.alpn, content="h3")
   assert_eq(result.server_handshake_keys.key, server_keys.key)
-  let bad_finished = @buffer.new()
+  let bad_finished = Buffer()
   bad_finished.write_byte(b'\x14')
   tls13_write_u24(bad_finished, 32)
   bad_finished.write_bytes(Bytes::make(32, b'\x00'))
   assert_true(
-    (try? tls13_process_server_handshake(
-      client_private,
-      client_hello,
-      server_hello,
-      encrypted_extensions,
-      bad_finished.contents(),
-    ))
-    is Err(_),
+    try
+      tls13_process_server_handshake(
+        client_private,
+        client_hello,
+        server_hello,
+        encrypted_extensions,
+        bad_finished.contents(),
+      )
+    catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
   )
 }
 
@@ -932,18 +982,18 @@ test "quic processes server initial and handshake packets" {
     x25519_public_key: client_public,
     transport_parameters,
   })
-  let key_share_payload = @buffer.new()
+  let key_share_payload = Buffer()
   tls13_write_u16(key_share_payload, tls13_group_x25519)
   tls13_write_u16(key_share_payload, server_public.length())
   key_share_payload.write_bytes(server_public)
-  let sh_extensions = @buffer.new()
+  let sh_extensions = Buffer()
   sh_extensions.write_bytes(
     tls13_extension(tls13_ext_supported_versions, b"\x03\x04"),
   )
   sh_extensions.write_bytes(
     tls13_extension(tls13_ext_key_share, key_share_payload.contents()),
   )
-  let sh_body = @buffer.new()
+  let sh_body = Buffer()
   tls13_write_u16(sh_body, 0x0303)
   sh_body.write_bytes(Bytes::make(32, b'\x55'))
   sh_body.write_byte(b'\x08')
@@ -952,7 +1002,7 @@ test "quic processes server initial and handshake packets" {
   sh_body.write_byte(b'\x00')
   tls13_write_u16(sh_body, sh_extensions.length())
   sh_body.write_bytes(sh_extensions.contents())
-  let server_hello = @buffer.new()
+  let server_hello = Buffer()
   server_hello.write_byte(b'\x02')
   tls13_write_u24(server_hello, sh_body.length())
   server_hello.write_bytes(sh_body.contents())
@@ -965,15 +1015,15 @@ test "quic processes server initial and handshake packets" {
     quic_encode_crypto_frame(0, server_hello),
   )
 
-  let ee_extensions = @buffer.new()
+  let ee_extensions = Buffer()
   ee_extensions.write_bytes(tls13_extension(tls13_ext_alpn, b"\x00\x03\x02h3"))
   ee_extensions.write_bytes(
     tls13_extension(tls13_ext_quic_transport_parameters, transport_parameters),
   )
-  let ee_body = @buffer.new()
+  let ee_body = Buffer()
   tls13_write_u16(ee_body, ee_extensions.length())
   ee_body.write_bytes(ee_extensions.contents())
-  let encrypted_extensions = @buffer.new()
+  let encrypted_extensions = Buffer()
   encrypted_extensions.write_byte(b'\x08')
   tls13_write_u24(encrypted_extensions, ee_body.length())
   encrypted_extensions.write_bytes(ee_body.contents())
@@ -987,15 +1037,15 @@ test "quic processes server initial and handshake packets" {
     secrets.server_handshake_traffic_secret,
   )
   let cert_der = test_x509_certificate_der()
-  let cert_entry = @buffer.new()
+  let cert_entry = Buffer()
   tls13_write_u24(cert_entry, cert_der.length())
   cert_entry.write_bytes(cert_der)
   tls13_write_u16(cert_entry, 0)
-  let cert_body = @buffer.new()
+  let cert_body = Buffer()
   cert_body.write_byte(b'\x00')
   tls13_write_u24(cert_body, cert_entry.length())
   cert_body.write_bytes(cert_entry.contents())
-  let cert_message = @buffer.new()
+  let cert_message = Buffer()
   cert_message.write_byte(tls13_handshake_certificate.to_byte())
   tls13_write_u24(cert_message, cert_body.length())
   cert_message.write_bytes(cert_body.contents())
@@ -1006,11 +1056,11 @@ test "quic processes server initial and handshake packets" {
       client_hello, server_hello, encrypted_extensions, cert_message,
     ]),
   )
-  let finished = @buffer.new()
+  let finished = Buffer()
   finished.write_byte(b'\x14')
   tls13_write_u24(finished, verify_data.length())
   finished.write_bytes(verify_data)
-  let handshake_crypto = @buffer.new()
+  let handshake_crypto = Buffer()
   handshake_crypto.write_bytes(encrypted_extensions)
   handshake_crypto.write_bytes(cert_message)
   handshake_crypto.write_bytes(finished.contents())
@@ -1090,7 +1140,10 @@ async test "quic sends h3 request packet over udp" {
       let opened = quic_open_short_packet(packet, dcid.length(), keys)
       let stream_data = quic_collect_stream_data(opened.payload, 0)
       let frames = h3_decode_frames(stream_data)
-      inspect(h3_decode_headers(frames[0])[0], content="(\":method\", \"GET\")")
+      debug_inspect(
+        h3_decode_headers(frames[0])[0],
+        content="(\":method\", \"GET\")",
+      )
       server.close()
     })
     let conn = @socket.UdpClient(server.addr)
@@ -1144,11 +1197,11 @@ async test "quic sends h3 request and receives response over udp" {
       )
       let request_stream = quic_collect_stream_data(opened.payload, 0)
       let request_frames = h3_decode_frames(request_stream)
-      inspect(
+      debug_inspect(
         h3_decode_headers(request_frames[0])[0],
         content="(\":method\", \"GET\")",
       )
-      let response_stream = @buffer.new()
+      let response_stream = Buffer()
       response_stream.write_bytes(
         h3_encode_headers([(":status", "200"), ("content-type", "text/plain")]),
       )
@@ -1237,18 +1290,18 @@ async test "h3 perform request completes quic tls loopback" {
       assert_eq(client_initial.token, retry_token)
       let client_hello = quic_collect_crypto_data(client_initial.payload)
       assert_eq(client_hello, first_client_hello)
-      let key_share_payload = @buffer.new()
+      let key_share_payload = Buffer()
       tls13_write_u16(key_share_payload, tls13_group_x25519)
       tls13_write_u16(key_share_payload, server_public.length())
       key_share_payload.write_bytes(server_public)
-      let sh_extensions = @buffer.new()
+      let sh_extensions = Buffer()
       sh_extensions.write_bytes(
         tls13_extension(tls13_ext_supported_versions, b"\x03\x04"),
       )
       sh_extensions.write_bytes(
         tls13_extension(tls13_ext_key_share, key_share_payload.contents()),
       )
-      let sh_body = @buffer.new()
+      let sh_body = Buffer()
       tls13_write_u16(sh_body, 0x0303)
       sh_body.write_bytes(Bytes::make(32, b'\x55'))
       sh_body.write_byte(legacy_session_id.length().to_byte())
@@ -1257,7 +1310,7 @@ async test "h3 perform request completes quic tls loopback" {
       sh_body.write_byte(b'\x00')
       tls13_write_u16(sh_body, sh_extensions.length())
       sh_body.write_bytes(sh_extensions.contents())
-      let server_hello_buf = @buffer.new()
+      let server_hello_buf = Buffer()
       server_hello_buf.write_byte(b'\x02')
       tls13_write_u24(server_hello_buf, sh_body.length())
       server_hello_buf.write_bytes(sh_body.contents())
@@ -1284,7 +1337,7 @@ async test "h3 perform request completes quic tls loopback" {
           active_connection_id_limit: 2,
         },
       )
-      let ee_extensions = @buffer.new()
+      let ee_extensions = Buffer()
       ee_extensions.write_bytes(
         tls13_extension(tls13_ext_alpn, b"\x00\x03\x02h3"),
       )
@@ -1293,10 +1346,10 @@ async test "h3 perform request completes quic tls loopback" {
           tls13_ext_quic_transport_parameters, server_transport_parameters,
         ),
       )
-      let ee_body = @buffer.new()
+      let ee_body = Buffer()
       tls13_write_u16(ee_body, ee_extensions.length())
       ee_body.write_bytes(ee_extensions.contents())
-      let encrypted_extensions_buf = @buffer.new()
+      let encrypted_extensions_buf = Buffer()
       encrypted_extensions_buf.write_byte(b'\x08')
       tls13_write_u24(encrypted_extensions_buf, ee_body.length())
       encrypted_extensions_buf.write_bytes(ee_body.contents())
@@ -1314,7 +1367,7 @@ async test "h3 perform request completes quic tls loopback" {
         tls13_transcript_hash([client_hello, server_hello, encrypted_extensions]),
       )
       let finished = tls13_encode_finished(verify_data)
-      let handshake_crypto = @buffer.new()
+      let handshake_crypto = Buffer()
       handshake_crypto.write_bytes(encrypted_extensions)
       handshake_crypto.write_bytes(finished)
       let server_quic_handshake_keys = tls13_derive_quic_packet_keys(
@@ -1350,7 +1403,7 @@ async test "h3 perform request completes quic tls loopback" {
         quic_collect_crypto_data(opened_client_handshake.payload).length(),
         36,
       )
-      let app_transcript_data = @buffer.new()
+      let app_transcript_data = Buffer()
       app_transcript_data.write_bytes(client_hello)
       app_transcript_data.write_bytes(server_hello)
       app_transcript_data.write_bytes(handshake_crypto.contents())
@@ -1381,11 +1434,11 @@ async test "h3 perform request completes quic tls loopback" {
       assert_true(first_frame_type != quic_frame_ack)
       let request_stream = quic_collect_stream_data(request.payload, 0)
       let request_frames = h3_decode_frames(request_stream)
-      inspect(
+      debug_inspect(
         h3_decode_headers(request_frames[0])[0],
         content="(\":method\", \"GET\")",
       )
-      let response_stream = @buffer.new()
+      let response_stream = Buffer()
       response_stream.write_bytes(
         h3_encode_headers([(":status", "200"), ("content-type", "text/plain")]),
       )
@@ -1434,7 +1487,13 @@ test "quic packet number spaces track sends and acks" {
   )
   inspect(initial_ack.largest_acknowledged, content="4")
   inspect(handshake_ack.largest_acknowledged, content="1")
-  assert_true((try? spaces.ack_frame(QuicApplicationSpace)) is Err(_))
+  assert_true(
+    try spaces.ack_frame(QuicApplicationSpace) catch {
+      _ => true
+    } noraise {
+      _ => false
+    },
+  )
 }
 
 ///|
@@ -1501,7 +1560,10 @@ test "tls13 application keys protect quic short packets" {
   let (stream, _) = quic_decode_stream_frame(opened.payload, 0)
   inspect(stream.stream_id, content="0")
   let frames = h3_decode_frames(stream.data)
-  inspect(h3_decode_headers(frames[0])[0], content="(\":method\", \"GET\")")
+  debug_inspect(
+    h3_decode_headers(frames[0])[0],
+    content="(\":method\", \"GET\")",
+  )
 }
 
 ///|
@@ -1522,12 +1584,12 @@ test "quic decodes h3 response from app packets" {
     app_secrets.server_application_traffic_secret,
   )
   let dcid = bytes_from_hex("f067a5502a4262b5")
-  let response_stream = @buffer.new()
+  let response_stream = Buffer()
   response_stream.write_bytes(
     h3_encode_headers([(":status", "200"), ("content-type", "text/plain")]),
   )
   response_stream.write_bytes(h3_encode_data(b"ok"))
-  let payload = @buffer.new()
+  let payload = Buffer()
   payload.write_bytes(quic_encode_ack(4, 0, 0))
   payload.write_bytes(
     quic_encode_stream_frame(0, 0, true, response_stream.contents()),
@@ -1539,6 +1601,9 @@ test "quic decodes h3 response from app packets" {
     server_keys,
   )
   inspect(response.status, content="200")
-  inspect(response.headers[1], content="(\"content-type\", \"text/plain\")")
+  debug_inspect(
+    response.headers[1],
+    content="(\"content-type\", \"text/plain\")",
+  )
   inspect(@utf8.decode_lossy(response.body), content="ok")
 }

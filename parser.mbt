@@ -42,13 +42,19 @@ priv struct BytesReader {
 ///|
 #cfg(target="native")
 #warnings("-alert_internal")
-fn BytesReader::new(data : Bytes) -> BytesReader {
+#alias(new)
+fn BytesReader::BytesReader(data : Bytes) -> BytesReader {
   { data, offset: 0, read_buf: @io.ReaderBuffer::new() }
 }
 
 ///|
 #cfg(target="native")
-impl @io.Reader for BytesReader with _direct_read(self, dst, offset~, max_len~) {
+impl @io.Reader for BytesReader with fn _direct_read(
+  self,
+  dst,
+  offset~,
+  max_len~,
+) {
   let remaining = self.data.length() - self.offset
   let len = @cmp.minimum(max_len, remaining)
   if len > 0 {
@@ -61,7 +67,7 @@ impl @io.Reader for BytesReader with _direct_read(self, dst, offset~, max_len~) 
 ///|
 #cfg(target="native")
 #warnings("-alert_internal")
-impl @io.Reader for BytesReader with _get_internal_buffer(self) {
+impl @io.Reader for BytesReader with fn _get_internal_buffer(self) {
   self.read_buf
 }
 
@@ -70,7 +76,8 @@ impl @io.Reader for BytesReader with _get_internal_buffer(self) {
 #warnings("-alert_internal")
 /// Create a new HTTP reader wrapping around existing reader `transport`.
 /// The HTTP reader will read data from `transport`.
-fn[R : @io.Reader] Reader::new(transport : R) -> Reader {
+#alias(new)
+fn[R : @io.Reader] Reader::Reader(transport : R) -> Reader {
   {
     body: Empty,
     transport,
@@ -91,8 +98,8 @@ pub suberror HttpProtocolError {
 ///|
 #cfg(target="native")
 async fn decode_gzip(data : Bytes) -> Bytes {
-  let reader = BytesReader::new(data)
-  @gzip.Decoder::new(reader).read_all().binary() catch {
+  let reader = BytesReader(data)
+  @gzip.Decoder(reader).read_all().binary() catch {
     _ => raise BadRequest
   }
 }
@@ -111,7 +118,7 @@ async fn ContentDecoder::decode(self : ContentDecoder, data : Bytes) -> Bytes {
 ///|
 #cfg(target="native")
 async fn Reader::read_encoded_body(self : Reader) -> Bytes {
-  let output = @buffer.new()
+  let output = Buffer()
   match self.body {
     Empty => ()
     Fixed(remaining) =>
@@ -165,7 +172,7 @@ async fn Reader::ensure_decoded(self : Reader) -> Unit {
   if self.body is Decoded(_) || self.decoder is None {
     return
   }
-  guard self.decoder is Some(decoder)
+  guard! self.decoder is Some(decoder)
   let encoded = self.read_encoded_body()
   let decoded = decoder.decode(encoded)
   self.decoder = None
@@ -179,7 +186,7 @@ async fn Reader::ensure_decoded(self : Reader) -> Unit {
 /// All reader related API of `HttpReader` should be called
 /// after a successful call to `read_response`,
 /// otherwise reading always result in EOF.
-impl @io.Reader for Reader with _direct_read(self, buf, offset~, max_len~) {
+impl @io.Reader for Reader with fn _direct_read(self, buf, offset~, max_len~) {
   self.ensure_decoded()
   match self.body {
     Empty => 0
@@ -255,7 +262,7 @@ impl @io.Reader for Reader with _direct_read(self, buf, offset~, max_len~) {
 ///|
 #cfg(target="native")
 #warnings("-alert_internal")
-impl @io.Reader for Reader with _get_internal_buffer(self) {
+impl @io.Reader for Reader with fn _get_internal_buffer(self) {
   if self.body is PassThrough || self.body is WaitConnectionClose {
     self.transport._get_internal_buffer()
   } else {
@@ -268,7 +275,7 @@ impl @io.Reader for Reader with _get_internal_buffer(self) {
 async fn Reader::read_headers(
   self : Reader,
 ) -> (Map[String, String], Array[Cookie]) {
-  let headers = {}
+  let headers = Map([])
   let cookies = []
   for ;; {
     guard self.transport.read_until("\r\n") is Some(header_line) else {
@@ -392,7 +399,7 @@ async fn Reader::read_response(
   request_method~ : RequestMethod?,
 ) -> Response {
   self.auto_decompress = auto_decompress
-  guard self.body is Empty
+  guard! self.body is Empty
   guard self.transport.read_until("\r\n") is Some(response_line) else {
     raise @io.ReaderClosed
   }
@@ -443,3 +450,7 @@ async fn Reader::enter_passthrough_mode(self : Reader) -> Unit {
   self.skip_body()
   self.body = PassThrough
 }
+
+///|
+#cfg(target="native")
+extend Reader with @io.Reader::{_direct_read, _get_internal_buffer, drop}

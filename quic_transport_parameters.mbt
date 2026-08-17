@@ -76,7 +76,7 @@ priv struct QuicClientTransportParameters {
 ///|
 #cfg(target="native")
 fn quic_encode_varint_value(value : Int) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, value)
   out.contents()
 }
@@ -99,7 +99,7 @@ fn quic_write_transport_parameter(
 fn quic_encode_client_transport_parameters(
   params : QuicClientTransportParameters,
 ) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_transport_parameter(
     out,
     quic_tp_initial_source_connection_id,

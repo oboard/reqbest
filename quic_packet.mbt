@@ -61,7 +61,7 @@ priv struct QuicShortPacket {
 ///|
 #cfg(target="native")
 fn quic_copy_slice(data : Bytes, start : Int, end : Int) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_bytes(data[start:end])
   out.contents()
 }
@@ -135,7 +135,7 @@ fn quic_build_initial_header(
   protected_payload_length : Int,
 ) -> (Bytes, Int, Int) raise {
   let packet_number_length = quic_packet_number_len(packet_number)
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte((0xc0 | ((packet_number_length - 1) & 0x03)).to_byte())
   out.write_byte(b'\x00')
   out.write_byte(b'\x00')
@@ -162,7 +162,7 @@ fn quic_build_handshake_header(
   protected_payload_length : Int,
 ) -> (Bytes, Int, Int) raise {
   let packet_number_length = quic_packet_number_len(packet_number)
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte((0xe0 | ((packet_number_length - 1) & 0x03)).to_byte())
   out.write_byte(b'\x00')
   out.write_byte(b'\x00')
@@ -317,7 +317,7 @@ fn quic_build_retry_packet(
   source_connection_id : Bytes,
   token : Bytes,
 ) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte(b'\xf0')
   out.write_bytes(b"\x00\x00\x00\x01")
   out.write_byte(destination_connection_id.length().to_byte())
@@ -337,7 +337,7 @@ fn quic_retry_integrity_tag(
   original_destination_connection_id : Bytes,
   retry_without_tag : Bytes,
 ) -> Bytes raise {
-  let pseudo = @buffer.new()
+  let pseudo = Buffer()
   pseudo.write_byte(original_destination_connection_id.length().to_byte())
   pseudo.write_bytes(original_destination_connection_id)
   pseudo.write_bytes(retry_without_tag)
@@ -403,7 +403,7 @@ fn quic_build_initial_packet(
   )
   let nonce = quic_initial_nonce(keys.iv, packet_number)
   let result = aes128_gcm_encrypt(keys.key, nonce, payload, header)
-  let unprotected = @buffer.new()
+  let unprotected = Buffer()
   unprotected.write_bytes(header)
   unprotected.write_bytes(result.ciphertext)
   unprotected.write_bytes(result.tag)
@@ -433,7 +433,7 @@ fn quic_protect_long_packet(
 ) -> QuicProtectedPacket raise {
   let nonce = quic_initial_nonce(keys.iv, packet_number)
   let result = aes128_gcm_encrypt(keys.key, nonce, payload, header)
-  let unprotected = @buffer.new()
+  let unprotected = Buffer()
   unprotected.write_bytes(header)
   unprotected.write_bytes(result.ciphertext)
   unprotected.write_bytes(result.tag)
@@ -509,7 +509,7 @@ fn quic_build_client_initial_datagram(
     destination_connection_id, source_connection_id, token, packet_number, payload,
   )
   while packet.packet.length() < 1200 {
-    let padded = @buffer.new()
+    let padded = Buffer()
     padded.write_bytes(payload)
     padded.write_bytes(quic_encode_padding(1200 - packet.packet.length()))
     payload = padded.contents()
@@ -597,7 +597,7 @@ fn quic_open_initial_packet(
     unprotected,
     long_header.payload_offset,
   )
-  let token = @buffer.new()
+  let token = Buffer()
   token.write_bytes(
     unprotected[token_payload_start:token_payload_start + token_length],
   )
@@ -707,7 +707,7 @@ fn quic_build_short_packet(
   keys : QuicPacketKeys,
 ) -> QuicProtectedPacket raise {
   let packet_number_length = quic_packet_number_len(packet_number)
-  let header = @buffer.new()
+  let header = Buffer()
   header.write_byte((0x40 | ((packet_number_length - 1) & 0x03)).to_byte())
   header.write_bytes(destination_connection_id)
   let packet_number_offset = header.length()
@@ -715,7 +715,7 @@ fn quic_build_short_packet(
   let header = header.contents()
   let nonce = quic_initial_nonce(keys.iv, packet_number)
   let result = aes128_gcm_encrypt(keys.key, nonce, payload, header)
-  let unprotected = @buffer.new()
+  let unprotected = Buffer()
   unprotected.write_bytes(header)
   unprotected.write_bytes(result.ciphertext)
   unprotected.write_bytes(result.tag)

@@ -96,6 +96,8 @@ pub struct ClientBuilder {
   mut version : HttpVersion
   mut verify : Bool
 }
+#alias(new)
+pub fn ClientBuilder::ClientBuilder() -> Self
 pub fn ClientBuilder::build(Self) -> RequestClient
 pub fn ClientBuilder::danger_accept_invalid_certs(Self, Bool) -> Self
 pub fn ClientBuilder::default_header(Self, String, String) -> Self
@@ -103,7 +105,6 @@ pub fn ClientBuilder::default_headers(Self, Map[String, String]) -> Self
 pub fn ClientBuilder::http1_only(Self) -> Self
 pub fn ClientBuilder::http2_prior_knowledge(Self) -> Self
 pub fn ClientBuilder::http3_prior_knowledge(Self) -> Self
-pub fn ClientBuilder::new() -> Self
 pub fn ClientBuilder::proxy(Self, Client) -> Self
 pub fn ClientBuilder::timeout(Self, Int) -> Self
 
@@ -155,11 +156,12 @@ pub struct RequestClient {
   version : HttpVersion
   verify : Bool
 }
+#alias(new)
+pub fn RequestClient::RequestClient() -> Self
 pub fn RequestClient::builder() -> ClientBuilder
 pub fn RequestClient::delete(Self, String) -> RequestBuilder
 pub fn RequestClient::get(Self, String) -> RequestBuilder
 pub fn RequestClient::head(Self, String) -> RequestBuilder
-pub fn RequestClient::new() -> Self
 pub fn RequestClient::options(Self, String) -> RequestBuilder
 pub fn RequestClient::patch(Self, String) -> RequestBuilder
 pub fn RequestClient::post(Self, String) -> RequestBuilder
@@ -200,4 +202,3 @@ pub fn ResponseBody::text(Self) -> String raise
 // Type aliases
 
 // Traits
-

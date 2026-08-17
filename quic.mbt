@@ -73,7 +73,7 @@ fn quic_parse_long_header(packet : Bytes) -> QuicLongHeader raise {
     packet[4].to_int()
   let dcid_len = packet[5].to_int()
   guard 6 + dcid_len < packet.length() else { raise QuicPacketTooShort }
-  let dcid = @buffer.new()
+  let dcid = Buffer()
   dcid.write_bytes(packet[6:6 + dcid_len])
   let scid_len_pos = 6 + dcid_len
   let scid_len = packet[scid_len_pos].to_int()
@@ -81,7 +81,7 @@ fn quic_parse_long_header(packet : Bytes) -> QuicLongHeader raise {
   guard scid_start + scid_len <= packet.length() else {
     raise QuicPacketTooShort
   }
-  let scid = @buffer.new()
+  let scid = Buffer()
   scid.write_bytes(packet[scid_start:scid_start + scid_len])
   {
     packet_type: (first >> 4) & 0x3,

@@ -43,7 +43,7 @@ priv struct H3DecodedResponse {
 ///|
 #cfg(target="native")
 fn h3_encode_frame(frame_type : Int, payload : Bytes) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, frame_type)
   quic_write_varint(out, payload.length())
   out.write_bytes(payload)
@@ -56,7 +56,7 @@ fn h3_decode_frame_at(data : Bytes, offset : Int) -> (H3Frame, Int) raise {
   let (frame_type, pos) = quic_read_varint(data, offset)
   let (len, pos) = quic_read_varint(data, pos)
   guard pos + len <= data.length() else { raise Http3FrameTruncated }
-  let payload = @buffer.new()
+  let payload = Buffer()
   payload.write_bytes(data[pos:pos + len])
   ({ frame_type, payload: payload.contents() }, pos + len)
 }
@@ -108,7 +108,7 @@ fn h3_decode_headers(frame : H3Frame) -> Array[(String, String)] raise {
 #cfg(target="native")
 #warnings("-unused_value")
 fn h3_encode_settings(settings : Array[(Int, Int)]) -> Bytes raise {
-  let payload = @buffer.new()
+  let payload = Buffer()
   for setting in settings {
     quic_write_varint(payload, setting.0)
     quic_write_varint(payload, setting.1)
@@ -137,7 +137,7 @@ fn h3_decode_settings(frame : H3Frame) -> Array[(Int, Int)] raise {
 #cfg(target="native")
 #warnings("-unused_value")
 fn h3_encode_control_stream(settings : Array[(Int, Int)]) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, h3_stream_control)
   out.write_bytes(h3_encode_settings(settings))
   out.contents()
@@ -150,7 +150,7 @@ fn h3_encode_request_stream(
   headers : Array[(String, String)],
   body : Bytes,
 ) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_bytes(h3_encode_headers(headers))
   if body.length() > 0 {
     out.write_bytes(h3_encode_data(body))
@@ -165,7 +165,7 @@ fn h3_decode_response_stream(stream_data : Bytes) -> H3DecodedResponse raise {
   let frames = h3_decode_frames(stream_data)
   let mut status = -1
   let mut headers = []
-  let body = @buffer.new()
+  let body = Buffer()
   for frame in frames {
     if frame.frame_type == h3_frame_headers {
       headers = h3_decode_headers(frame)
@@ -193,7 +193,7 @@ fn quic_decode_h3_response_packets(
   keys : QuicPacketKeys,
   stream_id? : Int = 0,
 ) -> H3DecodedResponse raise {
-  let stream_data = @buffer.new()
+  let stream_data = Buffer()
   for packet in packets {
     let opened = quic_open_short_packet(
       packet, destination_connection_id_length, keys,
@@ -262,17 +262,15 @@ fn h3_request_headers(
 ///|
 #cfg(target="native")
 fn h3_random_bytes(len : Int) -> Bytes {
-  let seed = @buffer.new()
+  let seed = Buffer()
   let now = @async.now()
   for i in 0..<4 {
     seed.write_int64_le(now + i.to_int64())
   }
   let rand = @random.Rand::chacha8(seed=seed.contents())
-  let out = @buffer.new()
-  for _ in 0..<len {
-    out.write_byte(rand.uint(limit=256U).to_byte())
-  }
-  out.contents()
+  [
+    for _ in 0..<len => rand.uint(limit=256U).to_byte()
+  ]
 }
 
 ///|

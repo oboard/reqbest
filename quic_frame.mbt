@@ -58,7 +58,7 @@ priv struct QuicStreamFrame {
 #warnings("-unused_value")
 fn quic_encode_padding(length : Int) -> Bytes raise {
   guard length >= 0 else { raise QuicFrameUnsupported }
-  let out = @buffer.new()
+  let out = Buffer()
   for _ in 0..<length {
     out.write_byte(quic_frame_padding.to_byte())
   }
@@ -69,7 +69,7 @@ fn quic_encode_padding(length : Int) -> Bytes raise {
 #cfg(target="native")
 #warnings("-unused_value")
 fn quic_encode_ping() -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte(quic_frame_ping.to_byte())
   out.contents()
 }
@@ -82,7 +82,7 @@ fn quic_encode_ack(
   ack_delay : Int,
   first_ack_range : Int,
 ) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, quic_frame_ack)
   quic_write_varint(out, largest_acknowledged)
   quic_write_varint(out, ack_delay)
@@ -109,7 +109,7 @@ fn quic_decode_ack(data : Bytes, offset : Int) -> (QuicAckFrame, Int) raise {
 #cfg(target="native")
 #warnings("-unused_value")
 fn quic_encode_crypto_frame(offset : Int, data : Bytes) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   quic_write_varint(out, quic_frame_crypto)
   quic_write_varint(out, offset)
   quic_write_varint(out, data.length())
@@ -144,7 +144,7 @@ fn quic_encode_stream_frame(
   fin : Bool,
   data : Bytes,
 ) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   let mut frame_type = quic_frame_stream_base | 0x02
   if offset > 0 {
     frame_type = frame_type | 0x04
@@ -203,7 +203,7 @@ fn quic_decode_stream_frame(
 #cfg(target="native")
 #warnings("-unused_value")
 fn quic_collect_crypto_data(payload : Bytes) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   for offset = 0; offset < payload.length(); {
     let (frame_type, _) = quic_read_varint(payload, offset)
     if frame_type == quic_frame_padding {
@@ -229,7 +229,7 @@ fn quic_collect_crypto_data(payload : Bytes) -> Bytes raise {
 #cfg(target="native")
 #warnings("-unused_value")
 fn quic_collect_stream_data(payload : Bytes, stream_id : Int) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   for offset = 0; offset < payload.length(); {
     let (frame_type, _) = quic_read_varint(payload, offset)
     if frame_type == quic_frame_padding {

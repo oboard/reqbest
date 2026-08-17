@@ -94,7 +94,7 @@ async fn[W : @io.Writer] h2_write_frame(
   stream_id : Int,
   payload : Bytes,
 ) -> Unit {
-  let out = @buffer.new()
+  let out = Buffer()
   h2_write_u24(out, payload.length())
   out.write_byte(frame_type.to_byte())
   out.write_byte(flags.to_byte())
@@ -111,7 +111,7 @@ async fn[W : @io.Writer] h2_write_window_update(
   increment : Int,
 ) -> Unit {
   guard increment > 0 else { return }
-  let payload = @buffer.new()
+  let payload = Buffer()
   h2_write_u31(payload, increment)
   h2_write_frame(
     writer,
@@ -136,7 +136,7 @@ async fn[W : @io.Writer] h2_write_data_frames(
     let len = @cmp.minimum(h2_default_max_frame_size, data.length() - offset)
     let end = offset + len
     let flags = if end == data.length() { h2_flag_end_stream } else { 0 }
-    let payload = @buffer.new()
+    let payload = Buffer()
     payload.write_bytes(data[offset:end])
     h2_write_frame(writer, h2_frame_data, flags, stream_id, payload.contents())
     continue end
@@ -242,7 +242,7 @@ fn h2_request_headers(
 fn h2_response_from_headers(
   headers : Array[(String, String)],
 ) -> Response raise {
-  let response_headers = {}
+  let response_headers = Map([])
   let cookies = []
   let mut code = -1
   for item in headers {
@@ -289,7 +289,7 @@ async fn[Conn : @io.Reader + @io.Writer] h2_request_on_conn(
   headers : Map[String, String],
   body : Bytes,
 ) -> ResponseBody {
-  conn.write(h2_preface)
+  @io.Writer::write(conn, h2_preface)
   h2_write_frame(conn, h2_frame_settings, 0, 0, b"")
   let header_block = h2_request_headers(
     protocol,
@@ -305,8 +305,8 @@ async fn[Conn : @io.Reader + @io.Writer] h2_request_on_conn(
   }
   h2_write_frame(conn, h2_frame_headers, flags, 1, header_block)
   h2_write_data_frames(conn, 1, body)
-  let body_out = @buffer.new()
-  let header_out = @buffer.new()
+  let body_out = Buffer()
+  let header_out = Buffer()
   let hpack_decoder = HpackDecoder::new()
   let mut response : Response? = None
   let mut end_stream = false
@@ -405,7 +405,15 @@ async fn h2_perform_request(
     }
     Https => {
       let tcp = @socket.Tcp::connect_to_host(host, port~)
-      let tls = @tls.Tls::client(tcp, host~, verify~) catch {
+      let tls = @tls.Tls::client(
+        tcp,
+        host~,
+        trust=if verify {
+          @tls.TrustedRoot::SystemRoot
+        } else {
+          @tls.TrustedRoot::NoVerification
+        },
+      ) catch {
         err => {
           tcp.close()
           raise err

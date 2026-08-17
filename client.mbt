@@ -67,7 +67,15 @@ async fn Client::connect(
     (Http, Plain(conn)) =>
       (None, Reader::new(conn), Sender::new(conn, headers~))
     (Https, Plain(conn)) => {
-      let tls = @tls.Tls::client(conn, host~, verify~) catch {
+      let tls = @tls.Tls::client(
+        conn,
+        host~,
+        trust=if verify {
+          @tls.TrustedRoot::SystemRoot
+        } else {
+          @tls.TrustedRoot::NoVerification
+        },
+      ) catch {
         err => {
           transport.close()
           raise err
@@ -78,7 +86,15 @@ async fn Client::connect(
     (Http, Proxy(proxy)) =>
       (None, Reader::new(proxy), Sender::new(proxy, headers~))
     (Https, Proxy(proxy)) => {
-      let tls = @tls.Tls::client(proxy, host~, verify~) catch {
+      let tls = @tls.Tls::client(
+        proxy,
+        host~,
+        trust=if verify {
+          @tls.TrustedRoot::SystemRoot
+        } else {
+          @tls.TrustedRoot::NoVerification
+        },
+      ) catch {
         err => {
           transport.close()
           raise err
@@ -161,13 +177,18 @@ pub fn Client::close(self : Client) -> Unit {
 
 ///|
 #cfg(target="native")
-pub impl @io.Reader for Client with _direct_read(self, buf, offset~, max_len~) {
+pub impl @io.Reader for Client with fn _direct_read(
+  self,
+  buf,
+  offset~,
+  max_len~,
+) {
   self.reader._direct_read(buf, offset~, max_len~)
 }
 
 ///|
 #cfg(target="native")
-pub impl @io.Reader for Client with _get_internal_buffer(self) {
+pub impl @io.Reader for Client with fn _get_internal_buffer(self) {
   self.reader._get_internal_buffer()
 }
 
@@ -179,15 +200,15 @@ pub impl @io.Reader for Client with _get_internal_buffer(self) {
 ///
 /// Writing to `@http.Client` MAY be buffered,
 /// call `flush` manually to ensure data is delivered to the remote peer.
-pub impl @io.Writer for Client with write_once(self, buf, offset~, len~) {
-  guard !(self.sender.mode is SendingHeader)
+pub impl @io.Writer for Client with fn write_once(self, buf, offset~, len~) {
+  guard! !(self.sender.mode is SendingHeader)
   self.sender.write_once(buf, offset~, len~)
 }
 
 ///|
 #cfg(target="native")
-pub impl @io.Writer for Client with write_reader(self, reader) {
-  guard !(self.sender.mode is SendingHeader)
+pub impl @io.Writer for Client with fn write_reader(self, reader) {
+  guard! !(self.sender.mode is SendingHeader)
   self.sender.write_reader(reader)
 }
 
@@ -318,7 +339,7 @@ pub async fn Client::post(
 /// (i.e. not in the middle of sending a request).
 /// Unread data from the body of the last response will be discarded.
 pub async fn Client::enter_passthrough_mode(self : Client) -> Unit {
-  guard self.sender.mode is SendingHeader
+  guard! self.sender.mode is SendingHeader
   self.reader.enter_passthrough_mode()
   self.sender.enter_passthrough_mode()
 }

@@ -111,7 +111,7 @@ priv struct Tls13Finished {
 ///|
 #cfg(target="native")
 fn tls13_copy_slice(data : Bytes, start : Int, end : Int) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_bytes(data[start:end])
   out.contents()
 }
@@ -334,7 +334,7 @@ fn tls13_certificate_verify_input(
   context : String,
   transcript_hash : Bytes,
 ) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   for _ in 0..<64 {
     out.write_byte(b'\x20')
   }

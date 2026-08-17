@@ -37,7 +37,7 @@ fn tls13_sha256(data : Bytes) -> Bytes {
 #cfg(target="native")
 #warnings("-unused_value")
 fn tls13_transcript_hash(messages : Array[Bytes]) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   for message in messages {
     out.write_bytes(message)
   }

@@ -17,7 +17,8 @@ pub struct ClientBuilder {
 }
 
 ///|
-pub fn ClientBuilder::new() -> ClientBuilder {
+#alias(new)
+pub fn ClientBuilder::ClientBuilder() -> ClientBuilder {
   { headers: {}, proxy: None, timeout: None, version: Http1, verify: true }
 }
 
@@ -103,13 +104,14 @@ pub fn ClientBuilder::build(self : ClientBuilder) -> RequestClient {
 }
 
 ///|
-pub fn RequestClient::new() -> RequestClient {
-  ClientBuilder::new().build()
+#alias(new)
+pub fn RequestClient::RequestClient() -> RequestClient {
+  ClientBuilder().build()
 }
 
 ///|
 pub fn RequestClient::builder() -> ClientBuilder {
-  ClientBuilder::new()
+  ClientBuilder()
 }
 
 ///|
@@ -220,7 +222,7 @@ pub fn RequestBuilder::json(
 
 ///|
 fn RequestBuilder::merged_headers(self : RequestBuilder) -> Map[String, String] {
-  let headers = {}
+  let headers = Map([])
   for key, value in self.client.headers {
     headers[key] = value
   }

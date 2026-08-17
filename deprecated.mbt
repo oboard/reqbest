@@ -23,14 +23,30 @@ fn Protocol::write_show(self : Protocol, logger : &Logger) -> Unit {
 
 ///|
 fn Response::write_show(self : Response, logger : &Logger) -> Unit {
-  logger
-  ..write_string("{code: ")
-  ..write_object(self.code)
-  ..write_string(", reason: ")
-  ..write_object(self.reason)
-  ..write_string(", headers: ")
-  ..write_object(self.headers)
-  .write_string("}")
+  logger.write_string("{code: ")
+  logger.write_object(self.code)
+  logger.write_string(", reason: ")
+  logger.write_object(self.reason)
+  logger.write_string(", headers: ")
+  write_string_map_show(logger, self.headers)
+  logger.write_string("}")
+}
+
+///|
+fn write_string_map_show(logger : &Logger, map : Map[String, String]) -> Unit {
+  logger.write_string("{")
+  let mut first = true
+  for key, value in map {
+    if first {
+      first = false
+    } else {
+      logger.write_string(", ")
+    }
+    logger.write_object(key)
+    logger.write_string(": ")
+    logger.write_object(value)
+  }
+  logger.write_string("}")
 }
 
 ///|
@@ -38,7 +54,7 @@ fn Response::write_show(self : Response, logger : &Logger) -> Unit {
 pub impl Show for RequestMethod
 
 ///|
-pub impl Show for RequestMethod with output(self, logger) {
+pub impl Show for RequestMethod with fn output(self, logger) {
   self.write_show(logger)
 }
 
@@ -47,7 +63,7 @@ pub impl Show for RequestMethod with output(self, logger) {
 pub impl Show for Response
 
 ///|
-pub impl Show for Response with output(self, logger) {
+pub impl Show for Response with fn output(self, logger) {
   self.write_show(logger)
 }
 
@@ -56,7 +72,7 @@ pub impl Show for Response with output(self, logger) {
 pub impl Show for Protocol
 
 ///|
-pub impl Show for Protocol with output(self, logger) {
+pub impl Show for Protocol with fn output(self, logger) {
   self.write_show(logger)
 }
 
@@ -65,7 +81,7 @@ pub impl Show for Protocol with output(self, logger) {
 pub impl Show for URIParseError
 
 ///|
-pub impl Show for URIParseError with output(self, logger) {
+pub impl Show for URIParseError with fn output(self, logger) {
   match self {
     InvalidFormat => logger.write_string("InvalidFormat")
     UnsupportedProtocol(protocol) =>
@@ -83,7 +99,7 @@ pub impl Show for ProxyError
 
 ///|
 #cfg(target="native")
-pub impl Show for ProxyError with output(self, logger) {
+pub impl Show for ProxyError with fn output(self, logger) {
   match self {
     ProxyError(response) => {
       logger.write_string("ProxyError(")
@@ -100,7 +116,7 @@ pub impl Show for HttpProtocolError
 
 ///|
 #cfg(target="native")
-pub impl Show for HttpProtocolError with output(self, logger) {
+pub impl Show for HttpProtocolError with fn output(self, logger) {
   match self {
     BadRequest => logger.write_string("BadRequest")
     HttpVersionNotSupported(version) =>

@@ -1,47 +1,66 @@
 ///|
 test "resolve_url" {
   debug_inspect(
-    try? resolve_url("http://www.example.org"),
+    resolve_url("http://www.example.org"),
     content=(
-      #|Ok((Http, 80, "www.example.org", "/"))
+      #|(Http, 80, "www.example.org", "/")
     ),
   )
   debug_inspect(
-    try? resolve_url("http://www.example.org/path/to"),
+    resolve_url("http://www.example.org/path/to"),
     content=(
-      #|Ok((Http, 80, "www.example.org", "/path/to"))
+      #|(Http, 80, "www.example.org", "/path/to")
     ),
   )
   debug_inspect(
-    try? resolve_url("https://www.example.org/path/to?search=q"),
+    resolve_url("https://www.example.org/path/to?search=q"),
     content=(
-      #|Ok((Https, 443, "www.example.org", "/path/to?search=q"))
+      #|(Https, 443, "www.example.org", "/path/to?search=q")
+    ),
+  )
+  try resolve_url("ftp://www.example.org") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|UnsupportedProtocol("ftp")
+        ),
+      )
+  } noraise {
+    _ => fail("expected resolve_url to raise")
+  }
+  debug_inspect(
+    resolve_url("http://www.example.org:10042"),
+    content=(
+      #|(Http, 10042, "www.example.org", "/")
     ),
   )
   debug_inspect(
-    try? resolve_url("ftp://www.example.org"),
+    resolve_url("http://www.example.org:10042/path"),
     content=(
-      #|Err(UnsupportedProtocol("ftp"))
+      #|(Http, 10042, "www.example.org", "/path")
     ),
   )
-  debug_inspect(
-    try? resolve_url("http://www.example.org:10042"),
-    content=(
-      #|Ok((Http, 10042, "www.example.org", "/"))
-    ),
-  )
-  debug_inspect(
-    try? resolve_url("http://www.example.org:10042/path"),
-    content=(
-      #|Ok((Http, 10042, "www.example.org", "/path"))
-    ),
-  )
-  debug_inspect(
-    try? resolve_url("http://www.example.org:0"),
-    content="Err(InvalidFormat)",
-  )
-  debug_inspect(
-    try? resolve_url("http://www.example.org:100042"),
-    content="Err(InvalidFormat)",
-  )
+  try resolve_url("http://www.example.org:0") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|InvalidFormat
+        ),
+      )
+  } noraise {
+    _ => fail("expected resolve_url to raise")
+  }
+  try resolve_url("http://www.example.org:100042") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|InvalidFormat
+        ),
+      )
+  } noraise {
+    _ => fail("expected resolve_url to raise")
+  }
 }

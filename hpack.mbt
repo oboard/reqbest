@@ -261,7 +261,7 @@ fn hpack_read_string(data : Bytes, offset : Int) -> (String, Int) raise {
   let is_huffman = (data[offset].to_int() & 0x80) != 0
   let (len, pos) = hpack_read_int(data, offset, prefix_bits=7)
   guard len >= 0 && pos + len <= data.length() else { raise HpackBadString }
-  let raw = @buffer.new()
+  let raw = Buffer()
   raw.write_bytes(data[pos:pos + len])
   let decoded = if is_huffman {
     hpack_huffman_decode(raw.contents())
@@ -292,7 +292,7 @@ fn hpack_write_header(
 ///|
 #cfg(target="native")
 fn hpack_encode_headers(headers : Array[(String, String)]) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   for item in headers {
     let (name, value) = item
     hpack_write_header(out, name, value)

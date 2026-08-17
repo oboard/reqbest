@@ -140,7 +140,7 @@ fn x25519_pack(n : FixedArray[Int64]) -> Bytes {
     m[14] = m[14] & 0xffffL
     x25519_select(t, m, 1L - b)
   }
-  let out = @buffer.new()
+  let out = Buffer()
   for i in 0..<16 {
     out.write_byte((t[i] & 0xffL).to_byte())
     out.write_byte(((t[i] >> 8) & 0xffL).to_byte())

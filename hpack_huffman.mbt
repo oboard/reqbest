@@ -63,7 +63,7 @@ fn hpack_huffman_find(code : Int, len : Int) -> Int? {
 ///|
 #cfg(target="native")
 fn hpack_huffman_decode(data : Bytes) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   let mut code = 0
   let mut len = 0
   for byte in data {

@@ -211,10 +211,10 @@ fn rsa_public_operation(signature : Bytes, key : RsaPublicKey) -> Bytes raise {
 ///|
 #cfg(target="native")
 fn rsa_mgf1_sha256(seed : Bytes, len : Int) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   let mut counter = 0
   while out.length() < len {
-    let block = @buffer.new()
+    let block = Buffer()
     block.write_bytes(seed)
     block.write_byte(((counter >> 24) & 0xff).to_byte())
     block.write_byte(((counter >> 16) & 0xff).to_byte())
@@ -229,7 +229,7 @@ fn rsa_mgf1_sha256(seed : Bytes, len : Int) -> Bytes {
 ///|
 #cfg(target="native")
 fn rsa_pss_hash_message(message : Bytes, salt : Bytes) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_bytes(Bytes::make(8, b'\x00'))
   out.write_bytes(tls13_sha256(message))
   out.write_bytes(salt)

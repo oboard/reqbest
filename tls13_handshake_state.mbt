@@ -94,7 +94,7 @@ fn tls13_process_server_handshake(
   let mut certificate = None
   let mut certificate_verify = None
   let mut certificate_verify_transcript_hash = None
-  let before_finished = @buffer.new()
+  let before_finished = Buffer()
   before_finished.write_bytes(client_hello)
   before_finished.write_bytes(server_hello_message)
   before_finished.write_bytes(encrypted_extensions_message)
@@ -166,7 +166,7 @@ fn tls13_verify_certificate_verify(
 ///|
 #cfg(target="native")
 fn tls13_encode_finished(verify_data : Bytes) -> Bytes raise {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte(tls13_handshake_finished.to_byte())
   tls13_write_u24(out, verify_data.length())
   out.write_bytes(verify_data)
@@ -218,7 +218,7 @@ fn quic_process_tls13_server_handshake(
   let server_quic_handshake_keys = tls13_derive_quic_packet_keys(
     handshake_secrets.server_handshake_traffic_secret,
   )
-  let handshake_crypto = @buffer.new()
+  let handshake_crypto = Buffer()
   let mut server_handshake_largest_ack = -1
   for packet in server_handshake_packets {
     let opened = quic_open_handshake_packet(packet, server_quic_handshake_keys)
@@ -246,7 +246,7 @@ fn quic_process_tls13_server_handshake(
     extra_messages_before_finished=extra_messages,
     verify_certificate~,
   )
-  let app_transcript_data = @buffer.new()
+  let app_transcript_data = Buffer()
   app_transcript_data.write_bytes(client_hello)
   app_transcript_data.write_bytes(server_hello_message)
   app_transcript_data.write_bytes(handshake_crypto.contents())

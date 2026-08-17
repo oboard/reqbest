@@ -125,7 +125,7 @@ fn quic_build_tls13_client_finished_packet(
   finished_message : Bytes,
   ack_largest? : Int = -1,
 ) -> QuicProtectedPacket raise {
-  let payload = @buffer.new()
+  let payload = Buffer()
   if ack_largest >= 0 {
     payload.write_bytes(quic_encode_ack(ack_largest, 0, 0))
   }
@@ -175,7 +175,7 @@ fn quic_build_h3_client_request_packet(
   body : Bytes,
   ack_largest? : Int = -1,
 ) -> QuicProtectedPacket raise {
-  let payload = @buffer.new()
+  let payload = Buffer()
   if ack_largest >= 0 {
     payload.write_bytes(quic_encode_ack(ack_largest, 0, 0))
   }

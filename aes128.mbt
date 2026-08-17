@@ -176,7 +176,7 @@ fn aes128_encrypt_block(key : Bytes, block : Bytes) -> Bytes raise {
   aes_sub_bytes(state)
   aes_shift_rows(state)
   aes_add_round_key(state, round_key, 10)
-  let out = @buffer.new()
+  let out = Buffer()
   for i in 0..<16 {
     out.write_byte((state[i] & 0xff).to_byte())
   }
@@ -257,14 +257,14 @@ fn aes_gcm_ghash(h : Bytes, aad : Bytes, ciphertext : Bytes) -> Bytes {
     y_hi = r.0
     y_lo = r.1
   }
-  let len_block = @buffer.new()
+  let len_block = Buffer()
   len_block.write_uint64_be(aad.length().to_uint64() * 8UL)
   len_block.write_uint64_be(ciphertext.length().to_uint64() * 8UL)
   let len_bytes = len_block.contents()
   let x_hi = aes_u64_be(len_bytes, 0)
   let x_lo = aes_u64_be(len_bytes, 8)
   let r = aes_gcm_mul(y_hi ^ x_hi, y_lo ^ x_lo, h_hi, h_lo)
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_uint64_be(r.0)
   out.write_uint64_be(r.1)
   out.contents()
@@ -274,7 +274,7 @@ fn aes_gcm_ghash(h : Bytes, aad : Bytes, ciphertext : Bytes) -> Bytes {
 #cfg(target="native")
 fn aes_gcm_counter_block(iv : Bytes, counter : UInt) -> Bytes raise {
   guard iv.length() == 12 else { raise AesBadNonceLength }
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_bytes(iv)
   out.write_byte(((counter >> 24) & 0xff).to_byte())
   out.write_byte(((counter >> 16) & 0xff).to_byte())
@@ -295,7 +295,7 @@ fn aes128_gcm_encrypt(
   let h = aes128_encrypt_block(
     key, b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
   )
-  let ciphertext = @buffer.new()
+  let ciphertext = Buffer()
   for offset = 0, counter = 2U; offset < plaintext.length(); {
     let stream = aes128_encrypt_block(key, aes_gcm_counter_block(iv, counter))
     let len = @cmp.minimum(16, plaintext.length() - offset)
@@ -307,7 +307,7 @@ fn aes128_gcm_encrypt(
   let ciphertext = ciphertext.contents()
   let s = aes_gcm_ghash(h, aad, ciphertext)
   let e = aes128_encrypt_block(key, aes_gcm_counter_block(iv, 1U))
-  let tag = @buffer.new()
+  let tag = Buffer()
   for i in 0..<16 {
     tag.write_byte(e[i] ^ s[i])
   }
@@ -335,7 +335,7 @@ fn aes128_gcm_decrypt(
     good = good && (e[i] ^ s[i]) == tag[i]
   }
   guard good else { raise AesBadTag }
-  let plaintext = @buffer.new()
+  let plaintext = Buffer()
   for offset = 0, counter = 2U; offset < ciphertext.length(); {
     let stream = aes128_encrypt_block(key, aes_gcm_counter_block(iv, counter))
     let len = @cmp.minimum(16, ciphertext.length() - offset)

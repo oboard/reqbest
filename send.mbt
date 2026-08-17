@@ -29,11 +29,12 @@ let forbidden_headers : Set[String] = Set::from_array([
 
 ///|
 #cfg(target="native")
-fn[W : @io.Writer] Sender::new(
+#alias(new)
+fn[W : @io.Writer] Sender::Sender(
   w : W,
   headers? : Map[String, String] = {},
 ) -> Sender {
-  let header_text = @buffer.new()
+  let header_text = Buffer()
   let mut has_accept_encoding = false
   for k, v in headers {
     let k_lower = k.to_lower()
@@ -80,7 +81,7 @@ pub suberror IncorrectBodyLength derive(Debug, ToJson)
 
 ///|
 #cfg(target="native")
-impl @io.Writer for Sender with write_once(self, buf, offset~, len~) {
+impl @io.Writer for Sender with fn write_once(self, buf, offset~, len~) {
   match self.mode {
     SendingHeader => {
       if self.send_len >= self.send_buf.length() {
@@ -145,7 +146,7 @@ impl @io.Writer for Sender with write_once(self, buf, offset~, len~) {
 
 ///|
 #cfg(target="native")
-impl @io.Writer for Sender with write_reader(self, reader) {
+impl @io.Writer for Sender with fn write_reader(self, reader) {
   match self.mode {
     SendingHeader =>
       for ;; {
@@ -298,7 +299,7 @@ async fn Sender::send_request(
   path : String,
   extra_headers~ : Map[String, String],
 ) -> Bool {
-  guard self.mode is SendingHeader
+  guard! self.mode is SendingHeader
   self.should_have_empty_body = meth is (Get | Head | Delete | Trace)
   match meth {
     Get => self.write("GET ")
@@ -337,3 +338,7 @@ fn Sender::enter_passthrough_mode(self : Sender) -> Unit {
   self.send_len = 0
   self.mode = PassThrough
 }
+
+///|
+#cfg(target="native")
+extend Sender with @io.Writer::{write_once, write, write_reader}

@@ -48,7 +48,7 @@ fn hex_value(c : UInt16) -> Int raise {
 #cfg(target="native")
 fn bytes_from_hex(hex : String) -> Bytes raise {
   guard hex.length() % 2 == 0 else { raise BadHex }
-  let out = @buffer.new()
+  let out = Buffer()
   for i = 0; i < hex.length(); i = i + 2 {
     let hi = hex_value(hex.code_unit_at(i))
     let lo = hex_value(hex.code_unit_at(i + 1))
@@ -67,10 +67,10 @@ fn quic_hkdf_extract(salt : Bytes, ikm : Bytes) -> Bytes {
 #cfg(target="native")
 fn quic_hkdf_expand(prk : Bytes, info : Bytes, len : Int) -> Bytes raise {
   guard len <= 8160 else { raise HkdfOutputTooLarge }
-  let out = @buffer.new()
+  let out = Buffer()
   let mut previous = b""
   for counter = 1; out.length() < len; counter = counter + 1 {
-    let msg = @buffer.new()
+    let msg = Buffer()
     msg.write_bytes(previous)
     msg.write_bytes(info)
     msg.write_byte(counter.to_byte())
@@ -91,7 +91,7 @@ fn quic_hkdf_expand_label(
 ) -> Bytes raise {
   let full_label = "tls13 \{label}"
   let label_bytes = @utf8.encode(full_label)
-  let info = @buffer.new()
+  let info = Buffer()
   info.write_byte(((len >> 8) & 0xff).to_byte())
   info.write_byte((len & 0xff).to_byte())
   info.write_byte(label_bytes.length().to_byte())

@@ -632,12 +632,17 @@ async test "sender write incorrect length" {
     })
     let data = Bytes::make(20, b'\x00')
     sender.write(data)
-    debug_inspect(
-      try? sender.write(data),
-      content=(
-        #|Err(IncorrectBodyLength)
-      ),
-    )
+    try sender.write(data) catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|IncorrectBodyLength
+          ),
+        )
+    } noraise {
+      _ => fail("expected sender.write to raise")
+    }
   })
 }
 
@@ -658,12 +663,17 @@ async test "sender write_reader incorrect length" {
     let _ = sender.send_request(Post, "/", extra_headers={
       "Content-Length": "2048",
     })
-    debug_inspect(
-      try? sender.write_reader(license_file),
-      content=(
-        #|Err(IncorrectBodyLength)
-      ),
-    )
+    try sender.write_reader(license_file) catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|IncorrectBodyLength
+          ),
+        )
+    } noraise {
+      _ => fail("expected sender.write_reader to raise")
+    }
   })
 }
 
@@ -682,12 +692,17 @@ async test "sender end_body incorrect length" {
     let _ = sender.send_request(Post, "/", extra_headers={
       "content-length": "1",
     })
-    debug_inspect(
-      try? sender.end_body(),
-      content=(
-        #|Err(IncorrectBodyLength)
-      ),
-    )
+    try sender.end_body() catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|IncorrectBodyLength
+          ),
+        )
+    } noraise {
+      _ => fail("expected sender.end_body to raise")
+    }
   })
 }
 

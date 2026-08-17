@@ -91,7 +91,7 @@ fn qpack_read_string(
   let huffman = (data[offset].to_int() & (1 << prefix_bits)) != 0
   let (len, pos) = hpack_read_int(data, offset, prefix_bits~)
   guard pos + len <= data.length() else { raise QpackBadString }
-  let raw = @buffer.new()
+  let raw = Buffer()
   raw.write_bytes(data[pos:pos + len])
   let decoded = if huffman {
     hpack_huffman_decode(raw.contents())
@@ -104,7 +104,7 @@ fn qpack_read_string(
 ///|
 #cfg(target="native")
 fn qpack_encode_header_block(headers : Array[(String, String)]) -> Bytes {
-  let out = @buffer.new()
+  let out = Buffer()
   out.write_byte(b'\x00')
   out.write_byte(b'\x00')
   for item in headers {
