@@ -1,5 +1,5 @@
 import {
-  "oboard/mio" @mio_client,
+  "oboard/reqmest" @reqmest_client,
   "moonbitlang/core/bench",
   "moonbitlang/core/env",
   "moonbitlang/core/string",

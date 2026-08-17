@@ -1,13 +1,13 @@
 ///|
 test "builder merges headers" {
   let client = RequestClient::builder()
-    .default_header("User-Agent", "mio-test")
+    .default_header("User-Agent", "reqmest-test")
     .build()
   let builder = client.get("https://example.com").header("Accept", "text/plain")
   debug_inspect(
     builder.merged_headers(),
     content=(
-      #|{ "User-Agent": "mio-test", "Accept": "text/plain" }
+      #|{ "User-Agent": "reqmest-test", "Accept": "text/plain" }
     ),
   )
 }

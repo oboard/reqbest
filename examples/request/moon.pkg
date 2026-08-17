@@ -1,5 +1,5 @@
 import {
-  "oboard/mio",
+  "oboard/reqmest",
   "moonbitlang/async",
 } for "test"
 
@@ -7,7 +7,7 @@ warnings = "-29"
 
 options(
   targets: {
-    "mio_test.mbt": [ "native", "js" ],
+    "reqmest_test.mbt": [ "native", "js" ],
     "wasm_unused_imports_test.mbt": [ "wasm" ],
   },
 )

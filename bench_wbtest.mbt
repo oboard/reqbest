@@ -5,7 +5,7 @@ let bench_headers : Array[(String, String)] = [
   ("content-type", "application/json"),
   ("content-length", "128"),
   ("cache-control", "no-cache"),
-  ("x-powered-by", "mio"),
+  ("x-powered-by", "reqmest"),
 ]
 
 ///|

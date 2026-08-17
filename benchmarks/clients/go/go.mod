@@ -1,3 +1,3 @@
-module oboard/mio/benchmarks/clients/go
+module oboard/reqmest/benchmarks/clients/go
 
 go 1.26

@@ -1,6 +1,6 @@
 ///|
 async test {
-  let res = @mio.get("https://jsonplaceholder.typicode.com/todos/1")
+  let res = @reqmest.get("https://jsonplaceholder.typicode.com/todos/1")
   let json = res.json()
   json_inspect(json, content={
     "userId": 1,

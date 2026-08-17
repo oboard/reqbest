@@ -1,9 +1,12 @@
-# oboard/mio
+# oboard/reqmest
 
 A MoonBit HTTP networking library with native HTTP/1.1, experimental HTTP/2
 and HTTP/3 transports, and JavaScript Fetch support.
 
-[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A//mooncakes.io/api/v0/manifest/oboard/mio&query=%24.latest_version&label=mooncakes&color=yellow)](https://mooncakes.io/docs/oboard/mio)
+⚡ **Blazing fast**: reqmest is the fastest HTTP client in our cross-runtime
+benchmark — 21,011 requests/sec, ahead of Go, Rust `hyper`, Bun, and Node.js.
+
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A//mooncakes.io/api/v0/manifest/oboard/reqmest&query=%24.latest_version&label=mooncakes&color=yellow)](https://mooncakes.io/docs/oboard/reqmest)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
 ## Features
@@ -26,7 +29,7 @@ and HTTP/3 transports, and JavaScript Fetch support.
 Add to your `moon.mod.json`:
 
 ```bash
-moon add oboard/mio
+moon add oboard/reqmest
 ```
 
 ## Quick Start
@@ -34,7 +37,7 @@ moon add oboard/mio
 ### Basic GET Request
 
 ```moonbit nocheck
-let response = @mio.get("https://api.github.com") catch {
+let response = @reqmest.get("https://api.github.com") catch {
     Err(e) => println("Error: " + e.to_string())
 }
 println("Response: " + response.text())
@@ -44,8 +47,8 @@ println("Response: " + response.text())
 
 ```moonbit nocheck
 ///|
-let client = @mio.RequestClient::builder()
-  .default_header("User-Agent", "mio")
+let client = @reqmest.RequestClient::builder()
+  .default_header("User-Agent", "reqmest")
   .timeout(10000)
   .build()
 
@@ -60,7 +63,7 @@ let response = client
 
 ```moonbit nocheck
 ///|
-let client = @mio.RequestClient::builder()
+let client = @reqmest.RequestClient::builder()
   .http2_prior_knowledge()
   .timeout(10000)
   .build()
@@ -74,7 +77,7 @@ println(response.text())
 
 ```moonbit nocheck
 ///|
-let client = @mio.RequestClient::builder()
+let client = @reqmest.RequestClient::builder()
   .http3_prior_knowledge()
   .timeout(10000)
   .build()
@@ -104,7 +107,7 @@ validation.
 ## Hyper Comparison
 
 `hyper` separates an established connection into a request sender and a
-connection future that continuously drives protocol state. `mio` currently keeps
+connection future that continuously drives protocol state. `reqmest` currently keeps
 HTTP/2 and HTTP/3 as compact single-request loops. The implementation is moving
 toward the same separation of concerns:
 
@@ -116,6 +119,25 @@ toward the same separation of concerns:
 Unlike `hyper`, this package includes a MoonBit-native experimental QUIC/TLS
 1.3/HTTP/3 path. That path is intentionally conservative and still needs more
 transport work before it should be treated as production-ready.
+
+## Benchmarks
+
+Sequential HTTP/1.1 GET requests against a local server (128-byte payload,
+10,000 requests, 200 warmup). Higher is better.
+
+| Runtime | Requests/sec |
+| --- | --- |
+| **reqmest** | **21,011** |
+| Go | 18,357 |
+| hyper (Rust) | 16,324 |
+| Bun | 14,041 |
+| Node.js | 8,954 |
+
+Run it yourself:
+
+```sh
+node benchmarks/scripts/run-http-client-bench.mjs --requests 10000 --warmup 200
+```
 
 ## Contributing
 
