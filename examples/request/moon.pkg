@@ -1,5 +1,5 @@
 import {
-  "oboard/mio" @mio,
+  "oboard/mio",
   "moonbitlang/async",
 } for "test"
 
