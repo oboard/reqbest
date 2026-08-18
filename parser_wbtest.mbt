@@ -617,4 +617,106 @@ async test "read_response parse cookie" {
 }
 
 ///|
+async test "chunked body with chunk extensions" {
+  @async.with_task_group(group => {
+    let (r, w) = @io.pipe()
+    group.spawn_bg(() => {
+      defer w.close()
+      w
+      ..write("HTTP/1.1 200 OK\r\n")
+      ..write("Transfer-Encoding: chunked\r\n\r\n")
+      // RFC 7230 4.1.1 allows `;extensions` after the chunk size.
+      ..write("5;foo=bar\r\n")
+      ..write("hello\r\n")
+      ..write("6;exp=baz\r\n")
+      ..write(" world\r\n")
+      .write("0\r\n\r\n")
+    })
+    defer r.close()
+    let r = Reader::new(r)
+    let response = r.read_response(
+      request_method=Some(Get),
+      auto_decompress=true,
+    )
+    inspect(response.code, content="200")
+    inspect(
+      r.read_all().text(),
+      content=(
+        #|hello world
+      ),
+    )
+  })
+}
+
+///|
+async test "status line requires three digit code and reason space" {
+  @async.with_task_group(group => {
+    let (r, w) = @io.pipe()
+    group.spawn_bg(() => {
+      defer w.close()
+      // Two-digit status code is not valid HTTP.
+      w.write("HTTP/1.1 20 OK\r\n\r\n")
+    })
+    defer r.close()
+    let r = Reader::new(r)
+    try r.read_response(request_method=None, auto_decompress=true) catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|BadRequest
+          ),
+        )
+    } noraise {
+      _ => fail("expected read_response to raise")
+    }
+  })
+  @async.with_task_group(group => {
+    let (r, w) = @io.pipe()
+    group.spawn_bg(() => {
+      defer w.close()
+      // The code must be followed by a space, so a bare `200` is rejected.
+      w.write("HTTP/1.1 200\r\n\r\n")
+    })
+    defer r.close()
+    let r = Reader::new(r)
+    try r.read_response(request_method=None, auto_decompress=true) catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|BadRequest
+          ),
+        )
+    } noraise {
+      _ => fail("expected read_response to raise")
+    }
+  })
+}
+
+///|
+async test "status line HTTP/2.0 reports unsupported version" {
+  @async.with_task_group(group => {
+    let (r, w) = @io.pipe()
+    group.spawn_bg(() => {
+      defer w.close()
+      w.write("HTTP/2.0 200 OK\r\n\r\n")
+    })
+    defer r.close()
+    let r = Reader::new(r)
+    try r.read_response(request_method=None, auto_decompress=true) catch {
+      e =>
+        debug_inspect(
+          e,
+          content=(
+            #|HttpVersionNotSupported("HTTP/2.0")
+          ),
+        )
+    } noraise {
+      _ => fail("expected read_response to raise")
+    }
+  })
+}
+
+///|
 extend Reader with @io.Reader::{read_all}

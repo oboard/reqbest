@@ -118,13 +118,13 @@ pub async fn Client::new(
   ignore(proxy)
   ignore(verify)
   let (protocol, port, host, path) = resolve_url(uri)
-  guard path is "/" else { raise InvalidFormat }
+  guard path =~ re"^/$" else { raise InvalidFormat }
   Client::connect(host, protocol~, port~, headers~, proxy?)
 }
 
 ///|
 pub impl @io.Writer for Client with fn write_once(self, buf, offset~, len~) {
-  guard self.request is Some(request)
+  guard! self.request is Some(request)
   request.body_writer.write_once(buf, offset~, len~)
 }
 
@@ -137,7 +137,7 @@ pub async fn Client::flush(_ : Client) -> Unit {
 
 ///|
 pub impl @io.Reader for Client with fn _get_internal_buffer(self) {
-  guard self.response_body is Some(stream)
+  guard! self.response_body is Some(stream)
   stream._get_internal_buffer()
 }
 
@@ -148,13 +148,13 @@ pub impl @io.Reader for Client with fn _direct_read(
   offset~,
   max_len~,
 ) {
-  guard self.response_body is Some(stream)
+  guard! self.response_body is Some(stream)
   stream._direct_read(buf, offset~, max_len~)
 }
 
 ///|
 pub async fn Client::end_request(self : Client) -> Response {
-  guard self.request is Some(request)
+  guard! self.request is Some(request)
   self.request = None
   request.body_writer.close()
   let js_response : JsResponse = request.response.wait(
@@ -163,7 +163,7 @@ pub async fn Client::end_request(self : Client) -> Response {
   self.response_body = Some(
     @js_async.ReadableStream::from_js(js_response.body()),
   )
-  let headers = {}
+  let headers = Map([])
   for entry in js_response.headers().to_array() {
     headers[entry[0].to_lower()] = entry[1]
   }
@@ -219,7 +219,7 @@ pub async fn Client::request(
   path : String,
   extra_headers? : Map[String, String] = {},
 ) -> Unit {
-  guard self.request is None
+  guard! self.request is None
   let protocol = match self.protocol {
     Http => "http://"
     Https => "https://"

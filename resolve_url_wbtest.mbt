@@ -63,4 +63,29 @@ test "resolve_url" {
   } noraise {
     _ => fail("expected resolve_url to raise")
   }
+  // The regex keeps the original case of the scheme, so an uppercase scheme
+  // still reports an unsupported protocol instead of a format error.
+  try resolve_url("HTTP://www.example.org") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|UnsupportedProtocol("HTTP")
+        ),
+      )
+  } noraise {
+    _ => fail("expected resolve_url to raise")
+  }
+  // Empty host is rejected by the regex (the previous parser accepted it).
+  try resolve_url("http://:80/path") catch {
+    e =>
+      debug_inspect(
+        e,
+        content=(
+          #|InvalidFormat
+        ),
+      )
+  } noraise {
+    _ => fail("expected resolve_url to raise")
+  }
 }

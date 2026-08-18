@@ -37,28 +37,37 @@ fn ensure_supported_http_version(_version : HttpVersion) -> Unit {
 }
 
 ///|
+/// Regex for `scheme://host[:port][/path]` URLs.
+/// The scheme group is case-insensitive so that e.g. `HTTP://example.org`
+/// still reports `UnsupportedProtocol("HTTP")` instead of a format error,
+/// mirroring the previous hand-written matching behavior.
+const RESOLVE_URL_REGEX : Regex = re"^(?<scheme>(?i:[a-z][a-z0-9+.\-]*))://(?<host>[^/:#]+)(?::(?<port>[0-9]+))?(?<path>/.*)?$"
+
+///|
 fn resolve_url(uri : String) -> (Protocol, Int, String, String) raise {
-  guard uri.find("://") is Some(protocol_len) else { raise InvalidFormat }
-  let protocol = match uri[:protocol_len] {
-    "http" => Http
-    "https" => Https
-    protocol => raise UnsupportedProtocol(protocol.to_owned())
+  guard RESOLVE_URL_REGEX.execute(uri) is Some(m) else { raise InvalidFormat }
+  let protocol = match m.named_group("scheme") {
+    Some("http") => Http
+    Some("https") => Https
+    Some(scheme) => raise UnsupportedProtocol(scheme.to_owned())
+    None => raise InvalidFormat
   }
-  let uri = uri[protocol_len + 3:]
-  let (host, path) = if uri.find("/") is Some(i) {
-    (uri[:i].to_owned(), uri[i:].to_owned())
-  } else {
-    (uri.to_owned(), "/")
+  let host = match m.named_group("host") {
+    Some(host) => host.to_owned()
+    None => raise InvalidFormat
   }
-  let (host, port) = if host.find(":") is Some(port_start) {
-    let port_str = host[port_start + 1:]
-    let port = @string.parse_int(port_str) catch { _ => raise InvalidFormat }
-    guard port is (1..<65536) else { raise InvalidFormat }
-    (host[:port_start].to_owned(), port)
-  } else {
-    (host, protocol.default_port())
+  let port = match m.named_group("port") {
+    Some(port) => {
+      let port = @string.parse_int(port) catch { _ => raise InvalidFormat }
+      guard port is (1..<65536) else { raise InvalidFormat }
+      port
+    }
+    None => protocol.default_port()
   }
-  let path = if path == "" { "/" } else { path }
+  let path = match m.named_group("path") {
+    Some(path) => path.to_owned()
+    None => "/"
+  }
   (protocol, port, host, path)
 }
 

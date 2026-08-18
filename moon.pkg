@@ -2,6 +2,7 @@ import {
   "moonbitlang/core/cmp",
   "moonbitlang/core/random",
   "moonbitlang/core/string",
+  "moonbitlang/core/lexbuf",
   "moonbitlang/core/buffer",
   "moonbitlang/core/json",
   "moonbitlang/core/encoding/utf8",

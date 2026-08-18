@@ -20,6 +20,22 @@ priv enum ContentDecoder {
 
 ///|
 #cfg(target="native")
+/// HTTP/1.x header field, e.g. `Content-Length: 7`.
+/// Splits at the first colon and strips at most one leading space from the
+/// value. Empty field values are accepted (RFC 7230 allows an empty
+/// field-value).
+const HTTP_HEADER_FIELD : Regex = re"^(?<name>[^:]+): ?(?<value>.*)$"
+
+///|
+#cfg(target="native")
+/// Chunk-size line: a hex size, optionally followed by `;extensions`.
+/// Chunk extensions (RFC 7230 4.1.1) are matched and ignored, so a line
+/// such as `1a;foo=bar` is accepted. Trailing junk that is not an extension
+/// is rejected.
+const HTTP_CHUNK_SIZE : Regex = re"^(?<size>[0-9a-fA-F]+)(?:;.*)?$"
+
+///|
+#cfg(target="native")
 #warnings("-alert_internal")
 priv struct Reader {
   /// A HTTP reader type that can parse and deliver HTTP request/response
@@ -137,7 +153,12 @@ async fn Reader::read_encoded_body(self : Reader) -> Bytes {
         guard self.transport.read_until("\r\n") is Some(len_str) else {
           raise @io.ReaderClosed
         }
-        let next_chunk_len = @string.parse_int(len_str, base=16) catch {
+        // Chunk-size line: hex size with optional `;extensions` (RFC 7230 4.1.1).
+        guard HTTP_CHUNK_SIZE.execute(len_str) is Some(m) else {
+          raise BadRequest
+        }
+        guard m.named_group("size") is Some(size) else { raise BadRequest }
+        let next_chunk_len = @string.parse_int(size, base=16) catch {
           _ => raise BadRequest
         }
         if next_chunk_len == 0 {
@@ -213,7 +234,12 @@ impl @io.Reader for Reader with fn _direct_read(self, buf, offset~, max_len~) {
       guard self.transport.read_until("\r\n") is Some(len_str) else {
         raise @io.ReaderClosed
       }
-      let next_chunk_len = @string.parse_int(len_str, base=16) catch {
+      // Chunk-size line: hex size with optional `;extensions` (RFC 7230 4.1.1).
+      guard HTTP_CHUNK_SIZE.execute(len_str) is Some(m) else {
+        raise BadRequest
+      }
+      guard m.named_group("size") is Some(size) else { raise BadRequest }
+      let next_chunk_len = @string.parse_int(size, base=16) catch {
         _ => raise BadRequest
       }
       guard next_chunk_len > 0 else {
@@ -285,15 +311,15 @@ async fn Reader::read_headers(
       // empty line indicates end of header
       break
     }
-    guard header_line.find(":") is Some(colon_index) else { raise BadRequest }
-    let key = header_line[:colon_index].to_lower().to_owned()
-    guard colon_index + 1 < header_line.length() else { raise BadRequest }
-    let value_start = if header_line.code_unit_at(colon_index + 1) == ' ' {
-      colon_index + 2
-    } else {
-      colon_index + 1
+    // Split "name: value" at the first colon with a regex; at most one
+    // leading space of the value is stripped.
+    guard HTTP_HEADER_FIELD.execute(header_line) is Some(m) else {
+      raise BadRequest
     }
-    let value = header_line[value_start:].to_owned()
+    guard m.named_group("name") is Some(name) else { raise BadRequest }
+    guard m.named_group("value") is Some(value) else { raise BadRequest }
+    let key = name.to_lower().to_owned()
+    let value = value.to_owned()
     match key {
       "content-length" => {
         guard !(self.body is Fixed(_)) else { raise BadRequest }
@@ -308,17 +334,17 @@ async fn Reader::read_headers(
       }
       "transfer-encoding" => {
         guard !(self.body is Chunked(_)) else { raise BadRequest }
-        guard value.to_lower() is "chunked" else { raise NotImplemented }
+        guard value.to_lower() =~ re"^chunked$" else { raise NotImplemented }
         self.body = Chunked(0)
       }
       "content-encoding" if self.auto_decompress => {
         guard self.decoder is None else { raise BadRequest }
-        let decoder = match value.trim().to_lower() {
-          "gzip" => Some(Gzip)
-          "deflate" => Some(Deflate)
-          "br" => Some(Brotli)
-          "zstd" => Some(Zstd)
-          "identity" => None
+        let decoder = lexmatch value.trim().to_lower() with longest {
+          re"^gzip$" => Some(Gzip)
+          re"^deflate$" => Some(Deflate)
+          re"^br$" => Some(Brotli)
+          re"^zstd$" => Some(Zstd)
+          re"^identity$" => None
           _ => raise NotImplemented
         }
         if decoder is Some(_) {
@@ -403,17 +429,24 @@ async fn Reader::read_response(
   guard self.transport.read_until("\r\n") is Some(response_line) else {
     raise @io.ReaderClosed
   }
-  guard response_line.find(" ") is Some(protocol_len) else { raise BadRequest }
-  match response_line[:protocol_len] {
+  // Parse "HTTP/1.1 200 OK" with the `=~` match expression:
+  // `as` binds the matched version, `after` binds the remaining code and
+  // reason phrase. The code must be exactly three digits and must be
+  // followed by a space.
+  guard response_line =~ (re"^HTTP/[0-9.]+" as version, after=rest) else {
+    raise BadRequest
+  }
+  match version {
     "HTTP/1.1" | "HTTP/1.0" => ()
     protocol => raise HttpVersionNotSupported(protocol.to_owned())
   }
-  let response_line = response_line[protocol_len + 1:]
-  guard response_line.find(" ") is Some(code_len) else { raise BadRequest }
-  let code = @string.parse_int(response_line[:code_len], base=10) catch {
+  guard rest =~ (re"^ [0-9]{3} " as code, after=reason) else {
+    raise BadRequest
+  }
+  let code = @string.parse_int(code.trim(), base=10) catch {
     _ => raise BadRequest
   }
-  let reason = response_line[code_len + 1:].to_owned()
+  let reason = reason.to_owned()
   let (headers, cookies) = self.read_headers()
 
   // HTTP/1.1 Spec (RFC 7230 Section 3.3.3): Message Body Length Determination
