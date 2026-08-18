@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "oboard/reqmest"
+package "oboard/reqbest"
 
 import {
   "moonbitlang/async/io",

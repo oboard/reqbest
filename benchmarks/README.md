@@ -1,9 +1,9 @@
-# reqmest HTTP Client Benchmarks
+# reqbest HTTP Client Benchmarks
 
 This directory contains two benchmark layers:
 
 - MoonBit package benchmarks in `bench_wbtest.mbt`, run by `moon test`.
-- Cross-runtime HTTP client benchmarks for `reqmest`, Node.js, Bun, Go, and Rust
+- Cross-runtime HTTP client benchmarks for `reqbest`, Node.js, Bun, Go, and Rust
   `hyper`, run by `benchmarks/scripts/run-http-client-bench.mjs`.
 
 The MoonBit package benchmarks follow the `test (b : @bench.T)` form described
@@ -12,7 +12,7 @@ in the [MoonBit benchmark guide](https://docs.moonbitlang.cn/language/benchmarks
 The cross-runtime benchmark starts one local HTTP/1.1 server, then runs each
 client against the same URL with the same request and warmup counts. Every
 client performs sequential GET requests and reads the full response body.
-The `reqmest` and `hyper` clients are run in release mode.
+The `reqbest` and `hyper` clients are run in release mode.
 
 ## Run
 

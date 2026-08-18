@@ -1,3 +1,3 @@
-module oboard/reqmest/benchmarks/clients/go
+module oboard/reqbest/benchmarks/clients/go
 
 go 1.26

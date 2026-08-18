@@ -1,12 +1,12 @@
-# oboard/reqmest
+# oboard/reqbest
 
 A MoonBit HTTP networking library with native HTTP/1.1, experimental HTTP/2
 and HTTP/3 transports, and JavaScript Fetch support.
 
-⚡ **Blazing fast**: reqmest is the fastest HTTP client in our cross-runtime
-benchmark — 21,011 requests/sec, ahead of Go, Rust `hyper`, Bun, and Node.js.
+⚡ **Blazing fast**: reqbest is the fastest HTTP client in our cross-runtime
+benchmark — 21,585 requests/sec, ahead of Go, Rust `hyper`, Bun, and Node.js.
 
-[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A//mooncakes.io/api/v0/manifest/oboard/reqmest&query=%24.latest_version&label=mooncakes&color=yellow)](https://mooncakes.io/docs/oboard/reqmest)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A//mooncakes.io/api/v0/manifest/oboard/reqbest&query=%24.latest_version&label=mooncakes&color=yellow)](https://mooncakes.io/docs/oboard/reqbest)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
 ## Features
@@ -29,7 +29,7 @@ benchmark — 21,011 requests/sec, ahead of Go, Rust `hyper`, Bun, and Node.js.
 Add to your `moon.mod.json`:
 
 ```bash
-moon add oboard/reqmest
+moon add oboard/reqbest
 ```
 
 ## Quick Start
@@ -37,7 +37,7 @@ moon add oboard/reqmest
 ### Basic GET Request
 
 ```moonbit nocheck
-let response = @reqmest.get("https://api.github.com") catch {
+let response = @reqbest.get("https://api.github.com") catch {
     Err(e) => println("Error: " + e.to_string())
 }
 println("Response: " + response.text())
@@ -47,8 +47,8 @@ println("Response: " + response.text())
 
 ```moonbit nocheck
 ///|
-let client = @reqmest.RequestClient::builder()
-  .default_header("User-Agent", "reqmest")
+let client = @reqbest.RequestClient::builder()
+  .default_header("User-Agent", "reqbest")
   .timeout(10000)
   .build()
 
@@ -63,7 +63,7 @@ let response = client
 
 ```moonbit nocheck
 ///|
-let client = @reqmest.RequestClient::builder()
+let client = @reqbest.RequestClient::builder()
   .http2_prior_knowledge()
   .timeout(10000)
   .build()
@@ -77,7 +77,7 @@ println(response.text())
 
 ```moonbit nocheck
 ///|
-let client = @reqmest.RequestClient::builder()
+let client = @reqbest.RequestClient::builder()
   .http3_prior_knowledge()
   .timeout(10000)
   .build()
@@ -107,7 +107,7 @@ validation.
 ## Hyper Comparison
 
 `hyper` separates an established connection into a request sender and a
-connection future that continuously drives protocol state. `reqmest` currently keeps
+connection future that continuously drives protocol state. `reqbest` currently keeps
 HTTP/2 and HTTP/3 as compact single-request loops. The implementation is moving
 toward the same separation of concerns:
 
@@ -127,11 +127,11 @@ Sequential HTTP/1.1 GET requests against a local server (128-byte payload,
 
 | Runtime | Requests/sec |
 | --- | --- |
-| **reqmest** | **21,011** |
-| Go | 18,357 |
-| hyper (Rust) | 16,324 |
-| Bun | 14,041 |
-| Node.js | 8,954 |
+| **reqbest** | **21,585** |
+| Go | 16,146 |
+| hyper (Rust) | 14,540 |
+| Bun | 13,451 |
+| Node.js | 8,517 |
 
 Run it yourself:
 

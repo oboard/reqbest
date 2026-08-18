@@ -1,6 +1,6 @@
 ///|
 let usage : String =
-  #|Usage: moon run benchmarks/clients/reqmest -- [OPTIONS]
+  #|Usage: moon run benchmarks/clients/reqbest -- [OPTIONS]
   #|
   #|Options:
   #|  --url URL          benchmark URL
@@ -30,7 +30,7 @@ fn parse_positive_int(name : String, value : String) -> Int raise {
 
 ///|
 async fn issue_request(
-  client : @reqmest_client.Client,
+  client : @reqbest_client.Client,
   path : String,
   payload_bytes : Int,
 ) -> Int {
@@ -81,7 +81,7 @@ async fn main {
   }
 
   let (origin, path) = split_origin_path(url)
-  let client = @reqmest_client.Client::new(origin, headers={
+  let client = @reqbest_client.Client::new(origin, headers={
     "Accept-Encoding": "identity",
   })
   defer client.close()
@@ -99,6 +99,6 @@ async fn main {
   let requests_per_sec = requests.to_double() * 1000.0 / elapsed_ms
 
   let output =
-    $|{"runtime":"reqmest","requests":\{requests},"warmup":\{warmup},"elapsed_ms":\{elapsed_ms},"requests_per_sec":\{requests_per_sec},"bytes":\{bytes}}
+    $|{"runtime":"reqbest","requests":\{requests},"warmup":\{warmup},"elapsed_ms":\{elapsed_ms},"requests_per_sec":\{requests_per_sec},"bytes":\{bytes}}
   println(output)
 }

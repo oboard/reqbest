@@ -11,13 +11,13 @@ const url = `http://127.0.0.1:${port}/payload`;
 
 const clients = [
   {
-    name: "reqmest",
+    name: "reqbest",
     check: ["moon", ["version"]],
     command: "moon",
     args: [
       "run",
       "--release",
-      "benchmarks/clients/reqmest",
+      "benchmarks/clients/reqbest",
       "--",
       "--url",
       url,

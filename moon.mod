@@ -1,6 +1,6 @@
-name = "oboard/reqmest"
+name = "oboard/reqbest"
 
-version = "0.5.4"
+version = "0.6.0"
 
 import {
   "moonbitlang/x@0.4.50",
@@ -10,7 +10,7 @@ import {
 
 readme = "README.mbt.md"
 
-repository = "https://github.com/oboard/reqmest"
+repository = "https://github.com/oboard/reqbest"
 
 license = "Apache-2.0"
 
