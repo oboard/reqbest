@@ -1,0 +1,13 @@
+import {
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/string",
+  "oboard/reqbest",
+  "moonbitlang/async",
+  "moonbitlang/async/stdio",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/io",
+}
+
+supported_targets = "+native"
+
+pkgtype(kind: "executable")
