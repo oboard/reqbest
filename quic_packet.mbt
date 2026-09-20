@@ -118,7 +118,7 @@ fn quic_reconstruct_packet_number(
   truncated : Int,
   length_bytes : Int,
   expected? : Int = 0,
-) -> Int raise {
+) -> Int {
   let window = 1 << (length_bytes * 8)
   if expected <= 0 {
     return truncated

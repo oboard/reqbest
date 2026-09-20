@@ -48,15 +48,11 @@ async fn Client::connect(
 ) -> Client {
   let transport = if proxy is Some(proxy) {
     let path = "\{host}:\{port}"
-    try {
+    {
+      errdefer proxy.close()
       let response = proxy..request(Connect, path).end_request()
       guard response.code is (200..<300) else { raise ProxyError(response) }
       proxy..skip_response_body().enter_passthrough_mode()
-    } catch {
-      err => {
-        proxy.close()
-        raise err
-      }
     }
     Proxy(proxy)
   } else {
@@ -67,38 +63,34 @@ async fn Client::connect(
     (Http, Plain(conn)) =>
       (None, Reader::new(conn), Sender::new(conn, headers~))
     (Https, Plain(conn)) => {
-      let tls = @tls.Tls::client(
-        conn,
-        host~,
-        trust=if verify {
-          @tls.TrustedRoot::SystemRoot
-        } else {
-          @tls.TrustedRoot::NoVerification
-        },
-      ) catch {
-        err => {
-          transport.close()
-          raise err
-        }
+      let tls = {
+        errdefer transport.close()
+        @tls.Tls::client(
+          conn,
+          host~,
+          trust=if verify {
+            @tls.TrustedRoot::SystemRoot
+          } else {
+            @tls.TrustedRoot::NoVerification
+          },
+        )
       }
       (Some(tls), Reader::new(tls), Sender::new(tls, headers~))
     }
     (Http, Proxy(proxy)) =>
       (None, Reader::new(proxy), Sender::new(proxy, headers~))
     (Https, Proxy(proxy)) => {
-      let tls = @tls.Tls::client(
-        proxy,
-        host~,
-        trust=if verify {
-          @tls.TrustedRoot::SystemRoot
-        } else {
-          @tls.TrustedRoot::NoVerification
-        },
-      ) catch {
-        err => {
-          transport.close()
-          raise err
-        }
+      let tls = {
+        errdefer transport.close()
+        @tls.Tls::client(
+          proxy,
+          host~,
+          trust=if verify {
+            @tls.TrustedRoot::SystemRoot
+          } else {
+            @tls.TrustedRoot::NoVerification
+          },
+        )
       }
       (Some(tls), Reader::new(tls), Sender::new(tls, headers~))
     }

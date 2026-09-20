@@ -405,19 +405,17 @@ async fn h2_perform_request(
     }
     Https => {
       let tcp = @socket.Tcp::connect_to_host(host, port~)
-      let tls = @tls.Tls::client(
-        tcp,
-        host~,
-        trust=if verify {
-          @tls.TrustedRoot::SystemRoot
-        } else {
-          @tls.TrustedRoot::NoVerification
-        },
-      ) catch {
-        err => {
-          tcp.close()
-          raise err
-        }
+      let tls = {
+        errdefer tcp.close()
+        @tls.Tls::client(
+          tcp,
+          host~,
+          trust=if verify {
+            @tls.TrustedRoot::SystemRoot
+          } else {
+            @tls.TrustedRoot::NoVerification
+          },
+        )
       }
       defer {
         tls.close()

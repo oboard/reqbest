@@ -26,11 +26,11 @@ pub fn Cookie::new(
 ///|
 #cfg(target="native")
 fn Cookie::parse(line : StringView) -> Cookie raise {
-  // Tokenize `name=value; attr=val; flag` with a lexbuf-based scanner.
+  // Tokenize `name=value; attr=val; flag` with a StringScanner-based scanner.
   // Each lexscan call consumes the prefix of one token and commits the
   // cursor, so repeated calls walk the cookie the same way a lexer consumes
-  // a stream (see the streaming scanner pattern in the MoonBit docs).
-  let lexbuf = @lexbuf.Lexbuf::from_string(line.to_owned())
+  // a stream.
+  let lexbuf = @lexbuf.StringScanner::{ data: line, cursor: 0, }
   let name = lex_cookie_name(lexbuf)
   guard lex_cookie_equals(lexbuf) else { raise BadRequest }
   let value = lex_cookie_value(lexbuf)
@@ -91,7 +91,7 @@ fn Cookie::parse(line : StringView) -> Cookie raise {
 /// attribute names, which never contain `;` because separators are consumed
 /// as their own tokens). An empty name is allowed for compatibility with the
 /// previous hand-written parser.
-fn lex_cookie_name(lexbuf : @lexbuf.Lexbuf) -> StringView {
+fn lex_cookie_name(lexbuf : @lexbuf.StringScanner) -> StringView {
   lexscan lexbuf with longest {
     re"^[^=;]*" as name => name
   }
@@ -100,7 +100,7 @@ fn lex_cookie_name(lexbuf : @lexbuf.Lexbuf) -> StringView {
 ///|
 #cfg(target="native")
 /// Consumes a single `=` token, returning whether one was present.
-fn lex_cookie_equals(lexbuf : @lexbuf.Lexbuf) -> Bool {
+fn lex_cookie_equals(lexbuf : @lexbuf.StringScanner) -> Bool {
   lexscan lexbuf with longest {
     re"^=" => true
     _ => false
@@ -110,7 +110,7 @@ fn lex_cookie_equals(lexbuf : @lexbuf.Lexbuf) -> Bool {
 ///|
 #cfg(target="native")
 /// Scans a cookie value: everything up to the next `;` (possibly empty).
-fn lex_cookie_value(lexbuf : @lexbuf.Lexbuf) -> StringView {
+fn lex_cookie_value(lexbuf : @lexbuf.StringScanner) -> StringView {
   lexscan lexbuf with longest {
     re"^[^;]*" as value => value
   }
@@ -120,7 +120,7 @@ fn lex_cookie_value(lexbuf : @lexbuf.Lexbuf) -> StringView {
 #cfg(target="native")
 /// Like `lex_cookie_value`, but strips trailing whitespace to mirror the
 /// whole-attribute trim performed by the previous parser.
-fn lex_cookie_attr_value(lexbuf : @lexbuf.Lexbuf) -> StringView {
+fn lex_cookie_attr_value(lexbuf : @lexbuf.StringScanner) -> StringView {
   lexscan lexbuf with longest {
     re"^[^;]*" as value => value.trim_end()
   }
@@ -129,7 +129,7 @@ fn lex_cookie_attr_value(lexbuf : @lexbuf.Lexbuf) -> StringView {
 ///|
 #cfg(target="native")
 /// Consumes a single `;` separator, returning whether one was present.
-fn lex_cookie_separator(lexbuf : @lexbuf.Lexbuf) -> Bool {
+fn lex_cookie_separator(lexbuf : @lexbuf.StringScanner) -> Bool {
   lexscan lexbuf with longest {
     re"^;" => true
     _ => false
@@ -140,7 +140,7 @@ fn lex_cookie_separator(lexbuf : @lexbuf.Lexbuf) -> Bool {
 #cfg(target="native")
 /// Skips leading whitespace before an attribute name; the previous parser
 /// trimmed each attribute segment.
-fn lex_cookie_skip_spaces(lexbuf : @lexbuf.Lexbuf) -> Unit {
+fn lex_cookie_skip_spaces(lexbuf : @lexbuf.StringScanner) -> Unit {
   lexscan lexbuf with longest {
     re"^[[:space:]]+" as spaces => ignore(spaces)
     _ => ()
