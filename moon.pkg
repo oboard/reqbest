@@ -45,6 +45,7 @@ options(
     "deprecated.mbt": [ "native", "js" ],
     "h2.mbt": [ "native" ],
     "h3.mbt": [ "native" ],
+    "interop_wbtest.mbt": [ "native" ],
     "hpack.mbt": [ "native" ],
     "hpack_huffman.mbt": [ "native" ],
     "parser.mbt": [ "native" ],

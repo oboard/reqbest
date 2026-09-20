@@ -73,7 +73,9 @@ fn tls13_derive_handshake_secrets(
   shared_secret : Bytes,
   transcript_hash : Bytes,
 ) -> Tls13HandshakeSecrets raise {
-  let early_secret = quic_hkdf_extract(tls13_zeros(), b"")
+  // RFC 8446 §7.1: Early Secret is HKDF-Extract with a salt of zeros and an
+  // IKM consisting of one Hash.length block of zeros for a zero-length PSK.
+  let early_secret = quic_hkdf_extract(tls13_zeros(), tls13_zeros())
   let derived_secret = tls13_derive_secret(
     early_secret,
     "derived",

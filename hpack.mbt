@@ -24,7 +24,7 @@ priv struct HpackDecoder {
 ///|
 #cfg(target="native")
 fn HpackDecoder::new(max_dynamic_size? : Int = 4096) -> HpackDecoder {
-  { dynamic_table: [], dynamic_size: 0, max_dynamic_size }
+  { dynamic_table: [], dynamic_size: 0, max_dynamic_size, }
 }
 
 ///|

@@ -111,7 +111,7 @@ fn x509_der_read_element(data : Bytes, offset : Int) -> X509DerElement raise {
   let (len, content_start) = x509_der_read_len(data, offset + 1)
   let content_end = content_start + len
   guard content_end <= data.length() else { raise X509DerTruncated }
-  { tag, header_start: offset, content_start, content_end, end: content_end }
+  { tag, header_start: offset, content_start, content_end, end: content_end, }
 }
 
 ///|

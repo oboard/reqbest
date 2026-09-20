@@ -157,7 +157,7 @@ async fn[R : @io.Reader] h2_read_frame(reader : R) -> H2Frame {
     (header[7].to_int() << 8) |
     header[8].to_int()
   let payload = if length == 0 { b"" } else { reader.read_exactly(length) }
-  { frame_type, flags, stream_id, payload }
+  { frame_type, flags, stream_id, payload, }
 }
 
 ///|
@@ -263,7 +263,7 @@ fn h2_response_from_headers(
     }
   }
   guard code >= 0 else { raise Http2MissingStatus }
-  { code, reason: "", headers: response_headers, cookies }
+  { code, reason: "", headers: response_headers, cookies, }
 }
 
 ///|
@@ -377,7 +377,7 @@ async fn[Conn : @io.Reader + @io.Writer] h2_request_on_conn(
     }
   }
   guard response is Some(response) else { raise Http2MissingStatus }
-  { response, body: h2_decode_body(response, body_out.contents()) }
+  { response, body: h2_decode_body(response, body_out.contents()), }
 }
 
 ///|

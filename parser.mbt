@@ -60,7 +60,7 @@ priv struct BytesReader {
 #warnings("-alert_internal")
 #alias(new)
 fn BytesReader::BytesReader(data : Bytes) -> BytesReader {
-  { data, offset: 0, read_buf: @io.ReaderBuffer::new() }
+  { data, offset: 0, read_buf: @io.ReaderBuffer::new(), }
 }
 
 ///|
@@ -461,7 +461,7 @@ async fn Reader::read_response(
     self.body = WaitConnectionClose // Read until connection close
   }
 
-  { code, reason, headers, cookies }
+  { code, reason, headers, cookies, }
 }
 
 ///|

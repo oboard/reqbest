@@ -87,7 +87,7 @@ fn Client::connect(
   proxy? : Client,
 ) -> Client {
   ignore(proxy)
-  { host, headers, protocol, port, request: None, response_body: None }
+  { host, headers, protocol, port, request: None, response_body: None, }
 }
 
 ///|

@@ -110,6 +110,28 @@ fn quic_read_packet_number(data : Bytes, offset : Int, len : Int) -> Int raise {
 }
 
 ///|
+/// Reconstruct the full packet number from a truncated packet number
+/// (RFC 9001 §A.3). `expected` is the next expected packet number (one more
+/// than the largest packet number received so far).
+#cfg(target="native")
+fn quic_reconstruct_packet_number(
+  truncated : Int,
+  length_bytes : Int,
+  expected? : Int = 0,
+) -> Int raise {
+  let window = 1 << (length_bytes * 8)
+  if expected <= 0 {
+    return truncated
+  }
+  let half = window / 2
+  let base = expected - half
+  if base <= 0 || truncated >= window {
+    return truncated
+  }
+  base - base % window + truncated
+}
+
+///|
 #cfg(target="native")
 fn quic_initial_nonce(iv : Bytes, packet_number : Int) -> Bytes raise {
   guard packet_number >= 0 else { raise QuicPacketNumberTooLarge }
@@ -118,9 +140,15 @@ fn quic_initial_nonce(iv : Bytes, packet_number : Int) -> Bytes raise {
   for i in 0..<12 {
     nonce[i] = iv[i]
   }
-  for i in 0..<8 {
-    let shift = (7 - i) * 8
-    nonce[4 + i] = nonce[4 + i] ^ ((packet_number >> shift) & 0xff).to_byte()
+  // XOR the 62-bit packet number into the low 8 bytes, big-endian.  `Int` is
+  // 32-bit here and its `>>` wraps shift counts modulo 32, so shifting by
+  // 32..56 bits would alias the wrong byte; extract each byte with explicit
+  // divisions instead.
+  let mut remaining = packet_number
+  for i = 11; i >= 4; i = i - 1 {
+    let byte = remaining % 256
+    nonce[i] = nonce[i] ^ byte.to_byte()
+    remaining = remaining / 256
   }
   nonce.unsafe_reinterpret_as_bytes()
 }
@@ -208,6 +236,30 @@ fn quic_apply_initial_header_protection(
 ///|
 #cfg(target="native")
 fn quic_remove_initial_header_protection(
+  packet : Bytes,
+  header_protection_key : Bytes,
+  packet_number_offset : Int,
+) -> (Bytes, Int) raise {
+  quic_remove_long_header_protection(
+    packet, header_protection_key, packet_number_offset,
+  )
+}
+
+///|
+#cfg(target="native")
+fn quic_remove_handshake_header_protection(
+  packet : Bytes,
+  header_protection_key : Bytes,
+  packet_number_offset : Int,
+) -> (Bytes, Int) raise {
+  quic_remove_long_header_protection(
+    packet, header_protection_key, packet_number_offset,
+  )
+}
+
+///|
+#cfg(target="native")
+fn quic_remove_long_header_protection(
   packet : Bytes,
   header_protection_key : Bytes,
   packet_number_offset : Int,
@@ -504,20 +556,23 @@ fn quic_build_client_initial_datagram(
   token? : Bytes = b"",
 ) -> QuicProtectedPacket raise {
   let crypto_frame = quic_encode_crypto_frame(0, crypto_data)
-  let mut payload = crypto_frame
-  let mut packet = quic_build_client_initial_packet(
-    destination_connection_id, source_connection_id, token, packet_number, payload,
+  let packet = quic_build_client_initial_packet(
+    destination_connection_id, source_connection_id, token, packet_number, crypto_frame,
   )
-  while packet.packet.length() < 1200 {
-    let padded = Buffer()
-    padded.write_bytes(payload)
-    padded.write_bytes(quic_encode_padding(1200 - packet.packet.length()))
-    payload = padded.contents()
-    packet = quic_build_client_initial_packet(
-      destination_connection_id, source_connection_id, token, packet_number, payload,
-    )
+  if packet.packet.length() >= 1200 {
+    return packet
   }
-  packet
+  let padding_length = 1200 - packet.packet.length()
+  let padded = Buffer()
+  padded.write_bytes(crypto_frame)
+  padded.write_bytes(quic_encode_padding(padding_length))
+  quic_build_client_initial_packet(
+    destination_connection_id,
+    source_connection_id,
+    token,
+    packet_number,
+    padded.contents(),
+  )
 }
 
 ///|
@@ -648,9 +703,10 @@ fn quic_open_initial_packet(
 fn quic_open_handshake_packet(
   packet : Bytes,
   keys : QuicPacketKeys,
+  expected_packet_number? : Int = 0,
 ) -> QuicLongProtectedPacket raise {
   let (_, packet_number_offset) = quic_handshake_packet_number_offset(packet)
-  let (unprotected, packet_number_length) = quic_remove_initial_header_protection(
+  let (unprotected, packet_number_length) = quic_remove_handshake_header_protection(
     packet,
     keys.hp,
     packet_number_offset,
@@ -660,8 +716,17 @@ fn quic_open_handshake_packet(
     unprotected,
     long_header.payload_offset,
   )
-  let packet_number = quic_read_packet_number(
+  let truncated_packet_number = quic_read_packet_number(
     unprotected, packet_number_offset, packet_number_length,
+  )
+  // RFC 9001 §A.3: the packet number may be truncated on the wire, so the full
+  // number has to be reconstructed against the largest number seen so far.
+  // Using the raw truncated value as the nonce input would fail the AEAD tag
+  // check as soon as the peer starts using more than one packet number byte.
+  let packet_number = quic_reconstruct_packet_number(
+    truncated_packet_number,
+    packet_number_length,
+    expected=expected_packet_number,
   )
   let encrypted_offset = packet_number_offset + packet_number_length
   let encrypted_length = payload_length - packet_number_length

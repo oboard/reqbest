@@ -154,7 +154,7 @@ async fn perform_request_body_with_options(
     version~,
     verify~,
   )
-  { response, body }
+  { response, body, }
 }
 
 ///|
@@ -166,7 +166,7 @@ async fn perform_request_body(
   proxy? : Client,
 ) -> ResponseBody {
   let (response, body) = perform_request(uri, meth, headers, body, proxy?)
-  { response, body }
+  { response, body, }
 }
 
 ///|

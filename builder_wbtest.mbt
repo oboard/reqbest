@@ -682,36 +682,50 @@ test "tls13 key schedule derives handshake traffic keys" {
   let secrets = tls13_derive_handshake_secrets(shared, transcript)
   inspect(
     @crypto.bytes_to_hex_string(secrets.early_secret),
-    content="b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad",
+    content=(
+      #|33ad0a1c607ec03b09e6cd9893680ce210adf300aa1f2660e1b22e10f170f92a
+    ),
   )
   inspect(
     @crypto.bytes_to_hex_string(secrets.handshake_secret),
-    content="6ba15db66ab3c7ca018f1d419801858133627705680281f983044762f85cb5c3",
+    content=(
+      #|e4e520f8ca639e6562121a8d006bbce3e012f049744806f283e99c54cab713f3
+    ),
   )
   inspect(
     @crypto.bytes_to_hex_string(secrets.client_handshake_traffic_secret),
-    content="f919601dad1105788e27075132951d50a026c726583f82d27bdd990fe2ca01ed",
+    content=(
+      #|808151501ca70dc460b20efe27d91760a6cced09d83705b10d9ef4e8664a60f4
+    ),
   )
   inspect(
     @crypto.bytes_to_hex_string(secrets.server_handshake_traffic_secret),
-    content="84f047c1eab5ad44123a2ed7f4a5a6a449d4e5d05b9bda7490a15ccea2d47885",
+    content=(
+      #|16f46aa51409d1195158bc81349b38283a30b313c10fafbe190579b2616aa054
+    ),
   )
   let client_keys = tls13_derive_traffic_keys(
     secrets.client_handshake_traffic_secret,
   )
   inspect(
     @crypto.bytes_to_hex_string(client_keys.key),
-    content="fff07e4f8ee99931eddb1dd042e52248",
+    content=(
+      #|c54a156d5075990c04f12403cf63e989
+    ),
   )
   inspect(
     @crypto.bytes_to_hex_string(client_keys.iv),
-    content="9870869cbb0cbdeacd8bd931",
+    content=(
+      #|67b86153dc026355b712a0b6
+    ),
   )
   inspect(
     @crypto.bytes_to_hex_string(
       tls13_finished_verify_data(client_keys.finished_key, transcript),
     ),
-    content="bc89f311fcefa56402b2e7a196d4e09e2028c7ab33bd20d4692273fdadef9b0f",
+    content=(
+      #|c77ceff46e998cb4ce45be66c7222e43026441642e711d5ef0c066c83c51c86e
+    ),
   )
 }
 
@@ -1078,7 +1092,7 @@ test "quic processes server initial and handshake packets" {
     client_private,
     client_hello,
     original_dcid,
-    server_initial.packet,
+    [server_initial.packet],
     [server_handshake.packet],
   )
   inspect(result.encrypted_extensions.alpn, content="h3")
@@ -1431,7 +1445,7 @@ async test "h3 perform request completes quic tls loopback" {
         client_application_keys,
       )
       let (first_frame_type, _) = quic_read_varint(request.payload, 0)
-      assert_true(first_frame_type != quic_frame_ack)
+      assert_eq(first_frame_type, quic_frame_ack)
       let request_stream = quic_collect_stream_data(request.payload, 0)
       let request_frames = h3_decode_frames(request_stream)
       debug_inspect(

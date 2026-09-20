@@ -311,7 +311,7 @@ fn aes128_gcm_encrypt(
   for i in 0..<16 {
     tag.write_byte(e[i] ^ s[i])
   }
-  { ciphertext, tag: tag.contents() }
+  { ciphertext, tag: tag.contents(), }
 }
 
 ///|

@@ -324,7 +324,7 @@ fn tls13_parse_certificate_verify(
   guard 4 + signature_len <= body.length() else {
     raise Tls13HandshakeTruncated
   }
-  { signature_scheme, signature: tls13_copy_slice(body, 4, 4 + signature_len) }
+  { signature_scheme, signature: tls13_copy_slice(body, 4, 4 + signature_len), }
 }
 
 ///|
@@ -349,5 +349,5 @@ fn tls13_certificate_verify_input(
 #warnings("-unused_value")
 fn tls13_parse_finished(message : Bytes) -> Tls13Finished raise {
   let body = tls13_handshake_body(message, tls13_handshake_finished)
-  { verify_data: body }
+  { verify_data: body, }
 }

@@ -58,7 +58,7 @@ fn h3_decode_frame_at(data : Bytes, offset : Int) -> (H3Frame, Int) raise {
   guard pos + len <= data.length() else { raise Http3FrameTruncated }
   let payload = Buffer()
   payload.write_bytes(data[pos:pos + len])
-  ({ frame_type, payload: payload.contents() }, pos + len)
+  ({ frame_type, payload: payload.contents(), }, pos + len)
 }
 
 ///|
@@ -181,7 +181,7 @@ fn h3_decode_response_stream(stream_data : Bytes) -> H3DecodedResponse raise {
     }
   }
   guard status >= 0 else { raise Http3FrameUnsupported }
-  { status, headers, body: body.contents() }
+  { status, headers, body: body.contents(), }
 }
 
 ///|
@@ -195,10 +195,24 @@ fn quic_decode_h3_response_packets(
 ) -> H3DecodedResponse raise {
   let stream_data = Buffer()
   for packet in packets {
-    let opened = quic_open_short_packet(
-      packet, destination_connection_id_length, keys,
-    )
-    stream_data.write_bytes(quic_collect_stream_data(opened.payload, stream_id))
+    let opened = try
+      quic_open_short_packet(packet, destination_connection_id_length, keys)
+    catch {
+      _ => continue
+    } noraise {
+      p => p
+    }
+    let collected = try
+      quic_collect_stream_data(opened.payload, stream_id)
+    catch {
+      _ => continue
+    } noraise {
+      d => d
+    }
+    stream_data.write_bytes(collected)
+  }
+  if stream_data.contents().length() == 0 {
+    raise Http3ResponseIncomplete
   }
   h3_decode_response_stream(stream_data.contents())
 }
@@ -289,7 +303,7 @@ async fn h3_perform_request_with_config(
 ) -> ResponseBody {
   let (protocol, port, host, path) = resolve_url(uri)
   guard protocol == Https else { raise Http3ExpectedHttps }
-  let addr = @socket.Addr::resolve(host, port~)
+  let addr = @socket.Addr::resolve(host, port~, protocol=FavorV4)
   let conn = @socket.UdpClient(addr)
   defer conn.close()
   let initial = quic_send_tls13_client_initial_on_conn(
@@ -301,6 +315,7 @@ async fn h3_perform_request_with_config(
     client_private_key,
     initial.client_hello,
     destination_connection_id,
+    max_datagrams=32,
     verify_certificate=verify,
     retry_source_connection_id=source_connection_id,
   )
@@ -314,7 +329,7 @@ async fn h3_perform_request_with_config(
     conn,
     handshake.server_connection_id,
     source_connection_id,
-    0,
+    handshake.server_handshake_packet_count,
     handshake.client_quic_handshake_keys,
     handshake.client_finished_message,
     ack_largest=handshake.server_handshake_largest_ack,
@@ -335,15 +350,20 @@ async fn h3_perform_request_with_config(
     0,
     request_headers,
     request_body,
+    ack_largest=handshake.server_handshake_largest_ack,
   )
   conn.send(request_packet.packet)
   let decoded = quic_recv_h3_response_loop(
     conn,
     source_connection_id.length(),
     handshake.server_quic_application_keys,
+    max_datagrams=64,
+    ack_destination_connection_id=handshake.server_connection_id,
+    ack_source_connection_id=source_connection_id,
+    ack_keys=handshake.client_quic_application_keys,
   )
   let response = h3_response_from_decoded(decoded)
-  { response, body: h2_decode_body(response, decoded.body) as &@io.Data }
+  { response, body: h2_decode_body(response, decoded.body) as &@io.Data, }
 }
 
 ///|

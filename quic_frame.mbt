@@ -100,9 +100,14 @@ fn quic_decode_ack(data : Bytes, offset : Int) -> (QuicAckFrame, Int) raise {
   let (largest_acknowledged, pos) = quic_read_varint(data, pos)
   let (ack_delay, pos) = quic_read_varint(data, pos)
   let (range_count, pos) = quic_read_varint(data, pos)
-  guard range_count == 0 else { raise QuicFrameUnsupported }
-  let (first_ack_range, pos) = quic_read_varint(data, pos)
-  ({ largest_acknowledged, ack_delay, first_ack_range }, pos)
+  let (first_ack_range, first_ack_range_end) = quic_read_varint(data, pos)
+  let mut pos = first_ack_range_end
+  for _ in 0..<range_count {
+    let (_, gap_end) = quic_read_varint(data, pos)
+    let (_, range_end) = quic_read_varint(data, gap_end)
+    pos = range_end
+  }
+  ({ largest_acknowledged, ack_delay, first_ack_range, }, pos)
 }
 
 ///|
@@ -130,7 +135,7 @@ fn quic_decode_crypto_frame(
   let (len, pos) = quic_read_varint(data, pos)
   guard pos + len <= data.length() else { raise QuicFrameTruncated }
   (
-    { offset: crypto_offset, data: quic_copy_slice(data, pos, pos + len) },
+    { offset: crypto_offset, data: quic_copy_slice(data, pos, pos + len), },
     pos + len,
   )
 }
@@ -203,26 +208,54 @@ fn quic_decode_stream_frame(
 #cfg(target="native")
 #warnings("-unused_value")
 fn quic_collect_crypto_data(payload : Bytes) -> Bytes raise {
-  let out = Buffer()
-  for offset = 0; offset < payload.length(); {
-    let (frame_type, _) = quic_read_varint(payload, offset)
-    if frame_type == quic_frame_padding {
-      continue offset + 1
-    } else if frame_type == quic_frame_ping {
-      continue offset + 1
-    } else if frame_type == quic_frame_ack {
-      let (_, next) = quic_decode_ack(payload, offset)
-      continue next
-    } else if frame_type == quic_frame_crypto {
-      let (frame, next) = quic_decode_crypto_frame(payload, offset)
-      guard frame.offset == out.length() else { raise QuicCryptoOutOfOrder }
-      out.write_bytes(frame.data)
-      continue next
-    } else {
-      raise QuicFrameUnsupported
+  quic_merge_crypto_data([payload])
+}
+
+///|
+#cfg(target="native")
+#warnings("-unused_value")
+fn quic_merge_crypto_data(payloads : Array[Bytes]) -> Bytes raise {
+  let fragments = []
+  let mut total_length = 0
+  for payload in payloads {
+    for offset = 0; offset < payload.length(); {
+      let (frame_type, _) = quic_read_varint(payload, offset)
+      if frame_type == quic_frame_padding {
+        continue offset + 1
+      } else if frame_type == quic_frame_ping {
+        continue offset + 1
+      } else if frame_type == quic_frame_ack {
+        let (_, next) = quic_decode_ack(payload, offset)
+        continue next
+      } else if frame_type == quic_frame_crypto {
+        let (frame, next) = quic_decode_crypto_frame(payload, offset)
+        fragments.push(frame)
+        let end = frame.offset + frame.data.length()
+        if end > total_length {
+          total_length = end
+        }
+        continue next
+      } else {
+        raise QuicFrameUnsupported
+      }
     }
   }
-  out.contents()
+  if fragments.length() == 0 {
+    return b""
+  }
+  let out = FixedArray::make(total_length, b'\x00')
+  let filled = FixedArray::make(total_length, false)
+  for fragment in fragments {
+    for i in 0..<fragment.data.length() {
+      let pos = fragment.offset + i
+      out[pos] = fragment.data[i]
+      filled[pos] = true
+    }
+  }
+  for value in filled {
+    guard value else { raise QuicCryptoOutOfOrder }
+  }
+  out.unsafe_reinterpret_as_bytes()
 }
 
 ///|

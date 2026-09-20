@@ -166,7 +166,7 @@ fn quic_decode_transport_parameters(
     guard pos + len <= data.length() else {
       raise QuicTransportParameterTruncated
     }
-    params.push({ identifier, value: quic_copy_slice(data, pos, pos + len) })
+    params.push({ identifier, value: quic_copy_slice(data, pos, pos + len), })
     continue pos + len
   }
   params

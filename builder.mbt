@@ -19,7 +19,7 @@ pub struct ClientBuilder {
 ///|
 #alias(new)
 pub fn ClientBuilder::ClientBuilder() -> ClientBuilder {
-  { headers: {}, proxy: None, timeout: None, version: Http1, verify: true }
+  { headers: {}, proxy: None, timeout: None, version: Http1, verify: true, }
 }
 
 ///|
@@ -120,7 +120,7 @@ pub fn RequestClient::request(
   meth : RequestMethod,
   uri : String,
 ) -> RequestBuilder {
-  { client: self, meth, uri, headers: {}, body: b"" }
+  { client: self, meth, uri, headers: {}, body: b"", }
 }
 
 ///|

@@ -46,6 +46,7 @@ priv struct QuicTlsServerHandshakeResult {
   client_quic_handshake_keys : QuicPacketKeys
   server_quic_handshake_keys : QuicPacketKeys
   server_handshake_largest_ack : Int
+  server_handshake_packet_count : Int
   client_finished_message : Bytes
   client_quic_application_keys : QuicPacketKeys
   server_quic_application_keys : QuicPacketKeys
@@ -117,7 +118,7 @@ fn tls13_process_server_handshake(
     finished_transcript,
   )
   let finished = tls13_parse_finished(finished_message)
-  guard tls13_bytes_equal(expected, finished.verify_data) else {
+  if tls13_bytes_equal(expected, finished.verify_data) == false {
     raise Tls13FinishedVerifyFailed
   }
   let peer_certificate_info = if certificate is Some(certificate) &&
@@ -196,14 +197,27 @@ fn quic_process_tls13_server_handshake(
   client_private_key : Bytes,
   client_hello : Bytes,
   original_destination_connection_id : Bytes,
-  server_initial_packet : Bytes,
+  server_initial_packets : Array[Bytes],
   server_handshake_packets : Array[Bytes],
   verify_certificate? : Bool = true,
 ) -> QuicTlsServerHandshakeResult raise {
-  let initial = quic_open_server_initial_packet(
-    server_initial_packet, original_destination_connection_id,
-  )
-  let initial_crypto = quic_collect_crypto_data(initial.payload)
+  guard server_initial_packets.length() > 0 else {
+    raise Tls13HandshakeTruncated
+  }
+  let initial_payloads = []
+  let mut server_connection_id = b""
+  let mut server_initial_largest_ack = -1
+  for packet in server_initial_packets {
+    let initial = quic_open_server_initial_packet(
+      packet, original_destination_connection_id,
+    )
+    server_connection_id = initial.source_connection_id
+    if initial.packet_number > server_initial_largest_ack {
+      server_initial_largest_ack = initial.packet_number
+    }
+    initial_payloads.push(initial.payload)
+  }
+  let initial_crypto = quic_merge_crypto_data(initial_payloads)
   let server_hello_messages = tls13_split_handshake_messages(initial_crypto)
   guard server_hello_messages.length() >= 1 else {
     raise Tls13HandshakeTruncated
@@ -218,19 +232,31 @@ fn quic_process_tls13_server_handshake(
   let server_quic_handshake_keys = tls13_derive_quic_packet_keys(
     handshake_secrets.server_handshake_traffic_secret,
   )
-  let handshake_crypto = Buffer()
+  let handshake_payloads = []
   let mut server_handshake_largest_ack = -1
   for packet in server_handshake_packets {
-    let opened = quic_open_handshake_packet(packet, server_quic_handshake_keys)
+    let expected = server_handshake_largest_ack + 1
+    let opened = try
+      quic_open_handshake_packet(
+        packet,
+        server_quic_handshake_keys,
+        expected_packet_number=expected,
+      )
+    catch {
+      _ => continue
+    } noraise {
+      opened => opened
+    }
     if opened.packet_number > server_handshake_largest_ack {
       server_handshake_largest_ack = opened.packet_number
     }
-    handshake_crypto.write_bytes(quic_collect_crypto_data(opened.payload))
+    handshake_payloads.push(opened.payload)
   }
-  let handshake_messages = tls13_split_handshake_messages(
-    handshake_crypto.contents(),
-  )
-  guard handshake_messages.length() >= 2 else { raise Tls13HandshakeTruncated }
+  let handshake_crypto = quic_merge_crypto_data(handshake_payloads)
+  let handshake_messages = tls13_split_handshake_messages(handshake_crypto)
+  guard server_initial_largest_ack >= 0 && handshake_messages.length() >= 2 else {
+    raise Tls13HandshakeTruncated
+  }
   let encrypted_extensions_message = handshake_messages[0]
   let finished_message = handshake_messages[handshake_messages.length() - 1]
   let extra_messages = []
@@ -249,7 +275,7 @@ fn quic_process_tls13_server_handshake(
   let app_transcript_data = Buffer()
   app_transcript_data.write_bytes(client_hello)
   app_transcript_data.write_bytes(server_hello_message)
-  app_transcript_data.write_bytes(handshake_crypto.contents())
+  app_transcript_data.write_bytes(handshake_crypto)
   let app_transcript_hash = tls13_sha256(app_transcript_data.contents())
   let (client_handshake_keys, client_finished_message) = tls13_build_client_finished(
     handshake_secrets, app_transcript_hash,
@@ -261,8 +287,8 @@ fn quic_process_tls13_server_handshake(
   let client_quic_handshake_keys = tls13_derive_quic_packet_keys(
     handshake_secrets.client_handshake_traffic_secret,
   )
-  {
-    server_connection_id: initial.source_connection_id,
+  let result = {
+    server_connection_id,
     server_hello: verified.server_hello,
     encrypted_extensions: verified.encrypted_extensions,
     certificate: verified.certificate,
@@ -274,6 +300,7 @@ fn quic_process_tls13_server_handshake(
     client_quic_handshake_keys,
     server_quic_handshake_keys,
     server_handshake_largest_ack,
+    server_handshake_packet_count: server_handshake_largest_ack + 1,
     client_finished_message,
     client_quic_application_keys: tls13_derive_quic_packet_keys(
       app_secrets.client_application_traffic_secret,
@@ -282,4 +309,5 @@ fn quic_process_tls13_server_handshake(
       app_secrets.server_application_traffic_secret,
     ),
   }
+  result
 }

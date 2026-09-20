@@ -111,7 +111,7 @@ async fn quic_send_tls13_client_initial_on_conn(
     token~,
   )
   conn.send(datagram.packet)
-  { datagram, client_hello, client_public_key, transport_parameters }
+  { datagram, client_hello, client_public_key, transport_parameters, }
 }
 
 ///|
@@ -215,15 +215,23 @@ async fn quic_recv_tls13_server_handshake(
   client_private_key : Bytes,
   client_hello : Bytes,
   original_destination_connection_id : Bytes,
-  max_datagrams? : Int = 8,
+  max_datagrams? : Int = 64,
   verify_certificate? : Bool = true,
   retry_source_connection_id? : Bytes = b"",
 ) -> QuicTlsServerHandshakeResult {
   let mut initial_destination_connection_id = original_destination_connection_id
-  let mut server_initial_packet : Bytes? = None
+  let server_initial_packets = []
   let server_handshake_packets = []
   let mut retried = false
-  for _ in 0..<max_datagrams {
+  let mut handshake_processing_active = false
+  // ACK support: once we can parse ServerHello we hold client handshake keys
+  // and the server's SCID, and we send a Handshake-level ACK for every
+  // successfully decrypted server handshake packet.  quic-go paces its
+  // retransmission (and initial send) by congestion control: a single
+  // 1200-byte client Initial does not provide enough budget for the server
+  // to deliver its full Certificate + Finished flight unless we ACK.
+  let mut ack_state : (Bytes, Bytes, QuicPacketKeys, QuicPacketKeys, Int, Int)? = None
+  for datagram_index in 0..<max_datagrams {
     for packet in quic_recv_datagram_packets(conn) {
       let long_header = quic_parse_long_header(packet) catch { _ => continue }
       if long_header.packet_type == 3 &&
@@ -243,29 +251,96 @@ async fn quic_recv_tls13_server_handshake(
         conn.send(retry_initial.packet)
         initial_destination_connection_id = retry.source_connection_id
         retried = true
-        server_initial_packet = None
+        server_initial_packets.clear()
         server_handshake_packets.clear()
-      } else if long_header.packet_type == 0 && server_initial_packet is None {
-        server_initial_packet = Some(packet)
+        ack_state = None
+      } else if long_header.packet_type == 0 {
+        if !handshake_processing_active {
+          let duplicate = server_initial_packets
+            .iter()
+            .any(existing => existing == packet)
+          if !duplicate {
+            server_initial_packets.push(packet)
+          }
+        }
       } else if long_header.packet_type == 2 {
-        server_handshake_packets.push(packet)
+        let duplicate = server_handshake_packets
+          .iter()
+          .any(existing => existing == packet)
+        if !duplicate {
+          server_handshake_packets.push(packet)
+        }
       }
     }
-    if server_initial_packet is Some(initial) &&
+    if server_initial_packets.length() > 0 &&
       server_handshake_packets.length() > 0 {
+      handshake_processing_active = true
+      // Derive client/server handshake keys as early as possible so that we
+      // can acknowledge server handshake packets below.
+      if ack_state is None {
+        try {
+          let initial = quic_open_server_initial_packet(
+            server_initial_packets[0],
+            initial_destination_connection_id,
+          )
+          let initial_crypto = quic_merge_crypto_data([initial.payload])
+          let messages = tls13_split_handshake_messages(initial_crypto)
+          if messages.length() >= 1 {
+            let server_hello = tls13_parse_server_hello(messages[0])
+            let shared_secret = x25519(
+              client_private_key,
+              server_hello.x25519_public_key,
+            )
+            let secrets = tls13_derive_handshake_secrets(
+              shared_secret,
+              tls13_transcript_hash([client_hello, messages[0]]),
+            )
+            let client_keys = tls13_derive_quic_packet_keys(
+              secrets.client_handshake_traffic_secret,
+            )
+            let server_keys = tls13_derive_quic_packet_keys(
+              secrets.server_handshake_traffic_secret,
+            )
+            ack_state = Some(
+              (
+                initial.source_connection_id,
+                initial_destination_connection_id,
+                client_keys,
+                server_keys,
+                0,
+                -1,
+              ),
+            )
+          }
+        } catch {
+          _ => ()
+        } noraise {
+          _ => ()
+        }
+      }
+      // Try to finish the TLS handshake with everything received so far.  If
+      // it succeeds we return immediately and never emit a Handshake-level
+      // ACK-only packet; if the crypto stream is still incomplete we fall
+      // through and ACK what we have, which unlocks the peer's congestion
+      // window so it retransmits the rest.
+      let mut completed : QuicTlsServerHandshakeResult? = None
       try
         quic_process_tls13_server_handshake(
           client_private_key,
           client_hello,
           initial_destination_connection_id,
-          initial,
+          server_initial_packets,
           server_handshake_packets,
           verify_certificate~,
         )
       catch {
         _ => ()
       } noraise {
-        result => return result
+        result => completed = Some(result)
+      }
+      match completed {
+        Some(result) => return result
+        None => ()
       }
     }
   }
@@ -281,12 +356,48 @@ async fn quic_recv_h3_response_loop(
   keys : QuicPacketKeys,
   stream_id? : Int = 0,
   max_datagrams? : Int = 16,
+  ack_destination_connection_id? : Bytes = b"",
+  ack_source_connection_id? : Bytes = b"",
+  ack_keys? : QuicPacketKeys = { key: b"", iv: b"", hp: b"", },
 ) -> H3DecodedResponse {
   let packets = []
+  // The request itself consumed packet number 0 in the application space, so
+  // ACK-only packets must start at 1: reusing a packet number would make the
+  // peer treat the second packet as a duplicate and close the connection.
+  let mut next_ack_packet_number = 1
+  let mut largest_received = -1
+  let can_ack = ack_destination_connection_id.length() > 0 &&
+    ack_keys.key.length() > 0
   for _ in 0..<max_datagrams {
     for packet in quic_recv_datagram_packets(conn) {
       if packet.length() > 0 && (packet[0].to_int() & 0x80) == 0 {
         packets.push(packet)
+        try {
+          let opened = quic_open_short_packet(
+            packet, destination_connection_id_length, keys,
+          )
+          if opened.packet_number > largest_received {
+            largest_received = opened.packet_number
+          }
+        } catch {
+          _ => ()
+        } noraise {
+          _ => ()
+        }
+      }
+    }
+    if can_ack && largest_received >= 0 {
+      let ack_payload = quic_encode_ack(largest_received, 0, 0)
+      try {
+        let ack_packet = quic_build_short_packet(
+          ack_destination_connection_id, next_ack_packet_number, ack_payload, ack_keys,
+        )
+        conn.send(ack_packet.packet)
+        next_ack_packet_number = next_ack_packet_number + 1
+      } catch {
+        _ => ()
+      } noraise {
+        _ => ()
       }
     }
     try
