@@ -13,7 +13,7 @@ fn log_response(req : Response, logger : &Logger) -> Unit {
 
 ///|
 async test "read_response basic" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -44,7 +44,7 @@ async test "read_response basic" {
 
 ///|
 async test "read_response passthrough fallback (no length headers)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -81,7 +81,7 @@ async test "read_response passthrough fallback (no length headers)" {
 
 ///|
 async test "read_response 204 No Content (no body)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -118,7 +118,7 @@ async test "read_response 204 No Content (no body)" {
 
 ///|
 async test "read_response 205 Reset Content (no body)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -155,7 +155,7 @@ async test "read_response 205 Reset Content (no body)" {
 
 ///|
 async test "read_response 304 Not Modified (no body)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -192,7 +192,7 @@ async test "read_response 304 Not Modified (no body)" {
 
 ///|
 async test "read_response 100 Continue (no body)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -224,7 +224,7 @@ async test "read_response 100 Continue (no body)" {
 
 ///|
 async test "read_response CONNECT 200 (no body, tunnel mode)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {
@@ -258,7 +258,7 @@ async test "read_response CONNECT 200 (no body, tunnel mode)" {
 
 ///|
 async test "read_response HEAD 200 (no body)" {
-  let log = StringBuilder::new()
+  let log = StringBuilder()
   @async.with_task_group(root => {
     let (r, w) = @io.pipe()
     root.spawn_bg(() => {

@@ -1,6 +1,6 @@
 ///|
 fn ascii_to_string(ascii : BytesView) -> String {
-  let builder = StringBuilder::new()
+  let builder = StringBuilder()
   for byte in ascii {
     match byte {
       b'\n' => builder.write_char('\n')

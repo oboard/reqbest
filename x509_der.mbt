@@ -157,7 +157,7 @@ fn x509_der_oid(data : Bytes, element : X509DerElement) -> String raise {
     raise X509DerTruncated
   }
   let first = data[element.content_start].to_int()
-  let out = StringBuilder::new()
+  let out = StringBuilder()
   out.write_string("\{first / 40}")
   out.write_string(".")
   out.write_string("\{first % 40}")
