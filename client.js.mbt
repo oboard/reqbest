@@ -15,8 +15,12 @@ extern "js" fn JsHeaders::append(
   #| (headers, name, value) => headers.append(name, value)
 
 ///|
-extern "js" fn JsHeaders::to_array(headers : JsHeaders) -> Array[Array[String]] =
+extern "js" fn JsHeaders::to_array_ffi(headers : JsHeaders) -> FixedArray[FixedArray[String]] =
   #| (headers) => Array.from(headers.entries())
+
+fn JsHeaders::to_array(headers : JsHeaders) -> Array[Array[String]] {
+  Array::from_fixed_array(JsHeaders::to_array_ffi(headers).map(fn(__a1) { Array::from_fixed_array(__a1) }))
+}
 
 ///|
 #external
